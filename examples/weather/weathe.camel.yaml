@@ -1,0 +1,30 @@
+- route:
+    id: weather-demo
+    from:
+      uri: timer
+      parameters:
+        delay: "1000"
+        repeatCount: "1"
+        timerName: weatherTimer
+      steps:
+        - to:
+            uri: http://api.open-meteo.com/v1/forecast?latitude=21.0245&longitude=105.8412&current=temperature_2m,relative_humidity_2m&timezone=Asia%2FBangkok
+        - log:
+            id: log-3830
+            message: ${body}
+        - convertBodyTo: java.lang.String
+        - setHeader:
+            name: temp
+            jsonpath: $.current.temperature_2m
+        - setHeader:
+            name: humid
+            jsonpath: $.current.relative_humidity_2m
+        - setBody:
+            simple: |
+              Current Weather Report for Hanoi:
+              - Temperature: ${header.temp} °C
+              - Humidity: ${header.humid} %
+        - log:
+            message: |-
+              
+              ${body}

@@ -1,0 +1,10 @@
+- route:
+    id: hello-log-route
+    from:
+      uri: timer
+      parameters:
+        timerName: hello-timer
+        period: "5000"
+      steps:
+        - log:
+            message: Hello

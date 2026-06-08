@@ -1,0 +1,32 @@
+- route:
+    from:
+      uri: rest
+      parameters:
+        method: post
+        path: upload-file
+        consumes: multipart/form-data
+        produces: application/json
+      steps:
+        - to:
+            id: to-3067
+            uri: file
+            parameters:
+              directoryName: ./camel-routes-storage/uploads
+              fileName: ${header.CamelFileName}
+              fileExist: Fail
+        - setBody:
+            id: setBody-4230
+            simple:
+              expression: |
+                {
+                "status": "success",
+                "message": "File upload successfully",
+                "fileName": "${header.CamelFileName}"
+                }
+        - setHeader:
+            id: setHeader-4080
+            simple:
+              expression: application/json
+            name: Exchange.CONTENT_TYPE
+      id: from-1671
+    id: route-upload-file
