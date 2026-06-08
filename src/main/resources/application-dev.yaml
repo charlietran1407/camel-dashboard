@@ -1,0 +1,103 @@
+server:
+  port: ${SERVER_PORT:8080}
+  error:
+    whitelabel:
+      enabled: false
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.data.redis.autoconfigure.DataRedisAutoConfiguration
+      - org.springframework.boot.data.redis.autoconfigure.DataRedisRepositoriesAutoConfiguration
+      - org.springframework.boot.data.redis.autoconfigure.DataRedisReactiveAutoConfiguration
+  application:
+    name: apache-camel-dashboard
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/cameldashdev?options=-c%20timezone=UTC
+    username: cameldash
+    password: cameldash@welcome
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      idle-timeout: 30000
+      connection-timeout: 20000
+  jpa:
+    database: postgresql
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: none
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: false
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 0
+    locations: classpath:db/migration
+  ai:
+    mcp:
+      server:
+        name: apache-camel-dashboard
+        version: 1.0.0
+        type: SYNC
+        protocol: STATELESS
+        instructions: Native MCP server for creating services and deploying Apache Camel routes.
+        annotation-scanner:
+          enabled: false
+        capabilities:
+          tool: true
+          resource: false
+          prompt: false
+          completion: false
+        streamable-http:
+          mcp-endpoint: /mcp
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 10MB
+      max-request-size: 10MB
+  web:
+    resources:
+      static-locations: classpath:/static/
+camel:
+  springboot:
+    message-history: true
+  main:
+    run-controller: true
+    use-mdc-logging: true
+  dashboard:
+    storage-dir: ./camel-routes-storage
+    loader-path: ./libs
+    encrypt-key: MySuperSecretKey123
+    encrypt-salt: cxn-apache-camel-salt-v1
+    mcp:
+      api-key: 7430c6e6-fc22-4dd6-a9b0-41acde8e3710
+    cluster:
+      instance-id: localhost:8080
+      group: dev
+      heartbeat-interval-ms: 10000 # send heartbeat every 10 seconds
+      enabled: false
+      stream-key: "${camel.dashboard.cluster.group}:cluster:event:stream"
+      channel: "${camel.dashboard.cluster.group}:cluster:event:channel"
+      node-key-prefix: "${camel.dashboard.cluster.group}:cluster:node:"
+  component:
+    micrometer:
+      enabled: true
+  metrics:
+    enable-message-history: true
+otel:
+  logs:
+    exporter: otlp
+  exporter:
+    otlp:
+      endpoint: http://localhost:4317
+      protocol: grpc
+  instrumentation:
+    jdbc:
+      enabled: false

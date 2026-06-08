@@ -1,0 +1,59 @@
+# ==============================
+# Ignore build artifacts
+# ==============================
+target/
+!target/*.jar
+
+# Maven wrapper jar
+.mvn/wrapper/maven-wrapper.jar
+
+# ==============================
+# Frontend - don't copy into build context
+# ==============================
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/vite.log
+
+# ==============================
+# Runtime data (mounted via volumes)
+# ==============================
+camel-routes-storage/
+logs/
+libs/
+db/
+uploads/
+
+# ==============================
+# IDE & OS files
+# ==============================
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+.DS_Store
+Thumbs.db
+
+# ==============================
+# Git
+# ==============================
+.git/
+.gitignore
+.gitattributes
+
+# ==============================
+# Docs / test / misc
+# ==============================
+docs/
+test/
+plans/
+examples/
+scripts/
+*.md
+*.code-workspace
+*.log
+classpath.txt
+java.security
+otel-collector-config.yaml
+docker-compose.yaml

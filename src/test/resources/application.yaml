@@ -1,0 +1,84 @@
+server:
+  port: 8080
+  error:
+    whitelabel:
+      enabled: false
+spring:
+  application:
+    name: apache-camel-dashboard
+  datasource:
+    url: jdbc:postgresql://localhost:5432/cameldash
+    username: cameldash
+    password: cameldash@welcome
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      idle-timeout: 30000
+      connection-timeout: 20000
+  jpa:
+    database: postgresql
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 0
+    locations: classpath:db/migration
+  ai:
+    mcp:
+      server:
+        name: apache-camel-dashboard
+        version: 1.0.0
+        type: SYNC
+        protocol: STATELESS
+        instructions: Native MCP server for creating services and deploying Apache Camel routes.
+        annotation-scanner:
+          enabled: false
+        capabilities:
+          tool: true
+          resource: false
+          prompt: false
+          completion: false
+        streamable-http:
+          mcp-endpoint: /mcp
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 10MB
+      max-request-size: 10MB
+  web:
+    resources:
+      static-locations: classpath:/static/
+  main:
+    banner-mode: off
+camel:
+  springboot:
+    message-history: true
+  main:
+    run-controller: true
+    use-mdc-logging: true
+  rest:
+    component: platform-http
+    context-path: "/cameldash"
+  dashboard:
+    storage-dir: ./camel-routes-storage
+    encrypt-key: "MySuperSecretKey123"
+    encrypt-salt: "cxn-apache-camel-salt-v1"
+  component:
+    micrometer:
+      enabled: true
+  metrics:
+    enable-message-history: true
+otel:
+  logs:
+    exporter: otlp
+  exporter:
+    otlp:
+      endpoint: http://localhost:4317
+      protocol: grpc

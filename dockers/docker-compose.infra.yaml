@@ -1,0 +1,68 @@
+name: camel-dashboard-infra
+services:
+  postgresql:
+    image: postgres:18-trixie
+    restart: unless-stopped
+    shm_size: 128mb
+    volumes:
+      - /database/postgresql:/var/lib/postgresql
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_PASSWORD: cameldash@welcome
+      POSTGRES_USER: cameldash
+    networks:
+      - cameldash-net
+  adminer:
+    image: adminer:5.4.2
+    restart: unless-stopped
+    ports:
+      - 8383:8080
+    networks:
+      - cameldash-net
+  # ─────────────────────────────────────────────────────────────────────────
+  # Jaeger (Distributed Tracing UI)
+  # ─────────────────────────────────────────────────────────────────────────
+  jaeger:
+    image: jaegertracing/jaeger:2.17.0
+    container_name: jaeger
+    ports:
+      - "16686:16686"
+    networks:
+      - cameldash-net
+    restart: unless-stopped
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # OpenTelemetry Collector
+  # ─────────────────────────────────────────────────────────────────────────
+  otel-collector:
+    image: otel/opentelemetry-collector:0.151.0
+    container_name: otel-collector
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./otel-collector-config.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "4317:4317"   # OTLP gRPC (App → Collector)
+      - "4318:4318"   # OTLP HTTP  (App → Collector)
+      - "8888:8888"   # Prometheus metrics
+      - "13133:13133" # Health check
+    networks:
+      - cameldash-net
+    depends_on:
+      - jaeger
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.4-alpine
+    container_name: cameldash-redis
+    command: redis-server --notify-keyspace-events Ex
+    ports:
+      - "6379:6379"
+    networks:
+      - cameldash-net
+    restart: unless-stopped
+
+networks:
+  cameldash-net:
+    name: cameldash-net
+    driver: bridge
