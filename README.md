@@ -55,7 +55,7 @@ Camel Dashboard is a **low-code / vibe-code** platform for managing Apache Camel
 ```bash
 git clone https://github.com/charlietran1407/apache-camel-dashboard
 cd apache-camel-dashboard
-cp .env.example .env
+cp dockers/.env.example .env
 ```
 
 Edit `.env` and fill in the required values:
@@ -74,8 +74,14 @@ SERVER_PORT=8080
 
 ### 2. Start with Docker Compose
 
+Start the infrastructure services (PostgreSQL, Redis, Jaeger) first, followed by the Camel Dashboard application:
+
 ```bash
-docker-compose up -d
+# Start infrastructure
+docker-compose -f dockers/docker-compose.infra.yaml up -d
+
+# Start Camel Dashboard
+docker-compose -f dockers/example_docker-compose.yaml up -d
 ```
 
 ### 3. Open the Dashboard
