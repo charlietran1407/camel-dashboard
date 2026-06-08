@@ -10,9 +10,9 @@
 		<relativePath />
 	</parent>
 	<groupId>vn.cxn</groupId>
-	<artifactId>apache-camel-dashboard</artifactId>
+	<artifactId>camel-dashboard</artifactId>
 	<version>1.0.0</version>
-	<name>Apache Camel Dashboard</name>
+	<name>Camel Dashboard</name>
 	<description>A dashboard for managing Apache Camel routes.</description>
 	<url />
 	<licenses>
