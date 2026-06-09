@@ -1,0 +1,43 @@
+- rest:
+    id: rest-2225
+    path: /agent
+    post:
+      - id: post-3236
+        path: /chat
+        to:
+          uri: direct
+          parameters:
+            name: chat
+- route:
+    from:
+      uri: direct
+      parameters:
+        name: chat
+      steps:
+        - convertBodyTo:
+            id: convertBodyTo-3934
+            type: java.lang.String
+        - to:
+            id: to-2120
+            uri: langchain4j-agent
+            parameters:
+              agentId: assistant
+              agent: "#defaultAgent"
+    id: route-2702
+- beans:
+    - name: myChatModel
+      type: dev.langchain4j.model.googleai.GoogleAiGeminiChatModel
+      scriptLanguage: java
+      script: |
+        return dev.langchain4j.model.googleai.GoogleAiGeminiChatModel.builder()
+            .apiKey("{{GEMINI_API_KEY}}")
+            .modelName("{{GEMINI_MODEL_FLASH_LITE}}")
+            .build();
+    - name: myAgentConfig
+      type: org.apache.camel.component.langchain4j.agent.api.AgentConfiguration
+      properties:
+        chatModel: "#bean:myChatModel"
+    - name: defaultAgent
+      type: org.apache.camel.component.langchain4j.agent.api.AgentWithoutMemory
+      constructors:
+        "0": "#bean:myAgentConfig"

@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
+import vn.cxn.apache_camel.util.ExceptionUtil;
 import vn.cxn.apache_camel.validation.ValidationError;
 
 @Component
@@ -52,7 +53,8 @@ public class SyntaxValidationStepImpl implements RouteValidationStep {
             PluginHelper.getRoutesLoader(isolatedContext).loadRoutes(resource);
             return true;
         } catch (Exception e) {
-            String msg = e.getMessage();
+            String msg = ExceptionUtil.buildErrorMessage(e);
+            log.error("Route syntax validation failed: {}", msg);
             context.result().setIsValid(false);
             context.result().setStage("SYNTAX_STAGE");
             context.result()

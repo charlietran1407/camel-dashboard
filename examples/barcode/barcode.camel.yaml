@@ -1,0 +1,27 @@
+- rest:
+    path: /barcode
+    post:
+      - id: post-barcode
+        produces: image/png
+        consumes: application/json
+        description: Generate QR code barcode
+        to:
+          uri: direct:generate
+- route:
+    id: barcode-route
+    from:
+      uri: direct:generate
+      steps:
+        - unmarshal:
+            json: {}
+        - setBody:
+            simple: "${body[data]}"
+        - marshal:
+            barcode:
+              barcodeFormat: "QR_CODE"
+              imageType: "PNG"
+              width: 100
+              height: 100
+        - setHeader:
+            name: Content-Type
+            constant: image/png

@@ -55,7 +55,7 @@ RUN --mount=type=cache,target=/root/.m2 ./mvnw package -Pprod -DskipTests -B -q
 # =============================================================================
 # Stage 3: Runtime Image
 # =============================================================================
-FROM eclipse-temurin:25-jre-alpine AS runtime
+FROM eclipse-temurin:25-jdk-alpine AS runtime
 
 LABEL maintainer="TKC"
 LABEL description="Apache Camel Dashboard - Spring Boot + Vue 3 SPA"
@@ -71,7 +71,12 @@ RUN mkdir -p libs camel-routes-storage logs \
 
 # Copy the fat JAR from build stage with the correct owner directly
 COPY --from=backend-builder --chown=appuser:appgroup /app/target/*.jar app.jar
-#COPY target/*.jar app.jar
+
+# Unpack the jar to run in exploded mode (required for runtime compilation like jOOR to see classpath)
+RUN mkdir -p /app/extracted \
+    && cd /app/extracted \
+    && jar -xf ../app.jar \
+    && chown -R appuser:appgroup /app/extracted
 
 # Switch to non-root user
 USER appuser
@@ -80,9 +85,8 @@ USER appuser
 EXPOSE 8080
 
 # JVM options:
-#   -Dloader.path=./libs  → Spring Boot thin JAR loads extra JARs from ./libs
 #   -Dspring.profiles.active=prod → activates prod Spring profile
 ENTRYPOINT ["java", \
-    "-Dloader.path=./libs", \
     "-Dspring.profiles.active=prod", \
-    "-jar", "app.jar"]
+    "-cp", "/app/extracted/BOOT-INF/classes:/app/extracted/BOOT-INF/lib/*:/app/libs/*", \
+    "vn.cxn.apache_camel.ApacheCamelApplication"]
