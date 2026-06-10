@@ -1,19 +1,11 @@
 package vn.cxn.apache_camel.service;
 
 import jakarta.annotation.PostConstruct;
-import java.nio.charset.StandardCharsets;
-import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
-import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
-import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.GCMParameterSpec;
-import javax.crypto.spec.PBEKeySpec;
-import javax.crypto.spec.SecretKeySpec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import vn.cxn.apache_camel.model.dto.EnvProperty;
 import vn.cxn.apache_camel.model.entity.EnvPropertyEntity;
 import vn.cxn.apache_camel.repository.EnvPropertyRepository;
+import vn.cxn.apache_camel.util.EncryptionUtil;
 
 /**
  * Service for managing environment properties with DB-backed storage and AES-GCM encryption for
@@ -31,19 +24,6 @@ import vn.cxn.apache_camel.repository.EnvPropertyRepository;
 public class EnvPropertyService {
 
     private static final Logger log = LoggerFactory.getLogger(EnvPropertyService.class);
-
-    // AES-GCM parameters
-    private static final String TRANSFORMATION = "AES/GCM/NoPadding";
-    private static final String KEY_ALGORITHM = "AES";
-    private static final int AES_KEY_LENGTH_BITS = 256;
-    private static final int GCM_IV_LENGTH_BYTES = 12;
-    private static final int GCM_TAG_LENGTH_BITS = 128;
-
-    // PBKDF2 parameters
-    private static final String PBKDF2_ALGORITHM = "PBKDF2WithHmacSHA256";
-    private static final int PBKDF2_ITERATIONS = 65536;
-
-    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
     @Value("${camel.dashboard.encrypt-key:DefaultSecretKey}")
     private String encryptKey;
@@ -69,7 +49,7 @@ public class EnvPropertyService {
         }
 
         try {
-            this.secretKeySpec = deriveSecretKey(encryptKey);
+            this.secretKeySpec = EncryptionUtil.deriveSecretKey(encryptKey, encryptSalt);
         } catch (Exception e) {
             throw new IllegalStateException("Failed to derive cryptographic secret key", e);
         }
@@ -247,73 +227,19 @@ public class EnvPropertyService {
     // AES-GCM encryption helpers
     // ────────────────────────────────────────────────────────────────────────
 
-    /**
-     * Encrypts the given plaintext. The output format is: {@code Base64( IV(12 bytes) ||
-     * ciphertext_with_tag )}.
-     */
     private String encrypt(String plaintext) {
         try {
-            byte[] iv = new byte[GCM_IV_LENGTH_BYTES];
-            SECURE_RANDOM.nextBytes(iv);
-
-            Cipher cipher = Cipher.getInstance(TRANSFORMATION);
-            cipher.init(
-                    Cipher.ENCRYPT_MODE,
-                    secretKeySpec,
-                    new GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv));
-            byte[] ciphertext = cipher.doFinal(plaintext.getBytes(StandardCharsets.UTF_8));
-
-            byte[] combined = new byte[iv.length + ciphertext.length];
-            System.arraycopy(iv, 0, combined, 0, iv.length);
-            System.arraycopy(ciphertext, 0, combined, iv.length, ciphertext.length);
-
-            return Base64.getEncoder().encodeToString(combined);
+            return EncryptionUtil.encrypt(plaintext, secretKeySpec);
         } catch (Exception e) {
             throw new EncryptionException("Failed to encrypt value", e);
         }
     }
 
-    /** Decrypts a value previously produced by {@link #encrypt(String)}. */
     private String decrypt(String encoded) {
         try {
-            byte[] combined = Base64.getDecoder().decode(encoded);
-            if (combined.length < GCM_IV_LENGTH_BYTES + 16) {
-                // 16 = minimum GCM tag length
-                throw new IllegalArgumentException("Ciphertext too short");
-            }
-
-            byte[] iv = new byte[GCM_IV_LENGTH_BYTES];
-            byte[] ciphertext = new byte[combined.length - GCM_IV_LENGTH_BYTES];
-            System.arraycopy(combined, 0, iv, 0, iv.length);
-            System.arraycopy(combined, iv.length, ciphertext, 0, ciphertext.length);
-
-            Cipher cipher = Cipher.getInstance(TRANSFORMATION);
-            cipher.init(
-                    Cipher.DECRYPT_MODE,
-                    secretKeySpec,
-                    new GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv));
-            byte[] plaintext = cipher.doFinal(ciphertext);
-
-            return new String(plaintext, StandardCharsets.UTF_8);
+            return EncryptionUtil.decrypt(encoded, secretKeySpec);
         } catch (Exception e) {
             throw new EncryptionException("Failed to decrypt value", e);
-        }
-    }
-
-    /** Derives a 256-bit AES key from password using PBKDF2. */
-    private SecretKey deriveSecretKey(String password) throws Exception {
-        SecretKeyFactory factory = SecretKeyFactory.getInstance(PBKDF2_ALGORITHM);
-        PBEKeySpec spec =
-                new PBEKeySpec(
-                        password.toCharArray(),
-                        encryptSalt.getBytes(StandardCharsets.UTF_8),
-                        PBKDF2_ITERATIONS,
-                        AES_KEY_LENGTH_BITS);
-        try {
-            byte[] keyBytes = factory.generateSecret(spec).getEncoded();
-            return new SecretKeySpec(keyBytes, KEY_ALGORITHM);
-        } finally {
-            spec.clearPassword();
         }
     }
 

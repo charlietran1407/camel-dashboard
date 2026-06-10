@@ -14,9 +14,13 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.mockito.Spy;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.test.util.ReflectionTestUtils;
 import vn.cxn.apache_camel.exception.ConnectionTestException;
+import vn.cxn.apache_camel.model.dto.DbConnectionDTO;
 import vn.cxn.apache_camel.model.entity.DbConnectionEntity;
 import vn.cxn.apache_camel.repository.DbConnectionRepository;
+import vn.cxn.apache_camel.service.mapper.DbConnectionMapper;
+import vn.cxn.apache_camel.service.mapper.DbConnectionMapperImpl;
 
 class DbConnectionServiceTest {
 
@@ -26,28 +30,33 @@ class DbConnectionServiceTest {
 
     @Spy private JdbcUrlBuilder jdbcUrlBuilder = new JdbcUrlBuilder();
 
+    @Spy private DbConnectionMapper mapper = new DbConnectionMapperImpl();
+
     @InjectMocks private DbConnectionService connectionService;
 
     @BeforeEach
     void setUp() {
         MockitoAnnotations.openMocks(this);
+        ReflectionTestUtils.setField(connectionService, "encryptKey", "MySuperSecretKey123");
+        ReflectionTestUtils.setField(connectionService, "encryptSalt", "cxn-apache-camel-salt-v1");
+        connectionService.init();
     }
 
     @Test
     void testSaveConnectionRegistersInCamel() {
-        DbConnectionEntity entity = new DbConnectionEntity();
-        entity.setDbId("demoDb");
-        entity.setType("postgresql");
-        entity.setHost("localhost");
-        entity.setPort(5432);
-        entity.setDatabaseName("demo");
-        entity.setUsername("postgres");
-        entity.setPassword("secret");
+        DbConnectionDTO dto = new DbConnectionDTO();
+        dto.setDbId("demoDb");
+        dto.setType("postgresql");
+        dto.setHost("localhost");
+        dto.setPort(5432);
+        dto.setDatabaseName("demo");
+        dto.setUsername("postgres");
+        dto.setPassword("secret");
 
         when(repository.saveAndFlush(any(DbConnectionEntity.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        DbConnectionEntity saved = connectionService.saveConnection(entity);
+        DbConnectionDTO saved = connectionService.saveConnection(dto);
 
         assertThat(saved).isNotNull();
         assertThat(saved.getId()).isNotNull();
@@ -59,23 +68,23 @@ class DbConnectionServiceTest {
                         eq("postgres"),
                         eq("secret"),
                         isNull());
-        verify(repository, times(1)).saveAndFlush(entity);
+        verify(repository, times(1)).saveAndFlush(any(DbConnectionEntity.class));
     }
 
     @Test
     void testSaveConnectionHandlesUniqueConstraintViolation() {
-        DbConnectionEntity entity = new DbConnectionEntity();
-        entity.setDbId("demoDb");
-        entity.setType("postgresql");
-        entity.setHost("localhost");
-        entity.setDatabaseName("demo");
+        DbConnectionDTO dto = new DbConnectionDTO();
+        dto.setDbId("demoDb");
+        dto.setType("postgresql");
+        dto.setHost("localhost");
+        dto.setDatabaseName("demo");
 
         when(repository.saveAndFlush(any(DbConnectionEntity.class)))
                 .thenThrow(
                         new DataIntegrityViolationException(
                                 "duplicate key value violates unique constraint"));
 
-        assertThatThrownBy(() -> connectionService.saveConnection(entity))
+        assertThatThrownBy(() -> connectionService.saveConnection(dto))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("already exists");
     }
@@ -135,14 +144,14 @@ class DbConnectionServiceTest {
 
     @Test
     void testTestConnectionSqlFailureThrowsConnectionTestException() {
-        DbConnectionEntity conn = new DbConnectionEntity();
-        conn.setType("postgresql");
-        conn.setHost("invalid-host-xxxx");
-        conn.setDatabaseName("db");
-        conn.setUsername("user");
-        conn.setPassword("password=secret"); // Include password to check masking
+        DbConnectionDTO dto = new DbConnectionDTO();
+        dto.setType("postgresql");
+        dto.setHost("invalid-host-xxxx");
+        dto.setDatabaseName("db");
+        dto.setUsername("user");
+        dto.setPassword("password=secret"); // Include password to check masking
 
-        assertThatThrownBy(() -> connectionService.testConnection(conn))
+        assertThatThrownBy(() -> connectionService.testConnection(dto))
                 .isInstanceOf(ConnectionTestException.class)
                 .hasMessageContaining("Connection test failed");
     }

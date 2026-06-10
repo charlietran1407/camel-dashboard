@@ -5,7 +5,7 @@ import java.util.Map;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import vn.cxn.apache_camel.model.entity.DbConnectionEntity;
+import vn.cxn.apache_camel.model.dto.DbConnectionDTO;
 import vn.cxn.apache_camel.service.DbConnectionService;
 
 @RestController
@@ -19,12 +19,12 @@ public class DbConnectionController {
     }
 
     @GetMapping
-    public List<DbConnectionEntity> getAllConnections() {
+    public List<DbConnectionDTO> getAllConnections() {
         return connectionService.getAllConnections();
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<DbConnectionEntity> getConnectionById(@PathVariable UUID id) {
+    public ResponseEntity<DbConnectionDTO> getConnectionById(@PathVariable UUID id) {
         return connectionService
                 .getConnectionById(id)
                 .map(ResponseEntity::ok)
@@ -32,13 +32,13 @@ public class DbConnectionController {
     }
 
     @PostMapping
-    public DbConnectionEntity saveConnection(@RequestBody DbConnectionEntity connection) {
+    public DbConnectionDTO saveConnection(@RequestBody DbConnectionDTO connection) {
         return connectionService.saveConnection(connection);
     }
 
     @PostMapping("/test")
     public ResponseEntity<ConnectionTestResult> testConnection(
-            @RequestBody DbConnectionEntity connection) {
+            @RequestBody DbConnectionDTO connection) {
         try {
             connectionService.testConnection(connection);
             return ResponseEntity.ok(new ConnectionTestResult(true, "Connection successful"));

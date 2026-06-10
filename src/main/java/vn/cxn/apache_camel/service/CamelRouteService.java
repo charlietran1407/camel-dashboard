@@ -27,6 +27,7 @@ import vn.cxn.apache_camel.model.enums.NodeState;
 import vn.cxn.apache_camel.model.enums.RouteState;
 import vn.cxn.apache_camel.repository.RouteRepository;
 import vn.cxn.apache_camel.repository.RouteVersionRepository;
+import vn.cxn.apache_camel.service.mapper.ServiceMapper;
 import vn.cxn.apache_camel.service.route_deployment.RouteDeploymentFacade;
 import vn.cxn.apache_camel.service.route_helper.*;
 import vn.cxn.apache_camel.util.CamelYamlParser;
@@ -53,6 +54,7 @@ public class CamelRouteService implements RouteLifecycleService, RouteQueryServi
     private final RouteRestCleanupService routeRestCleanupService;
     private final RouteEndpointCleanupService routeEndpointCleanupService;
     private final AuditLogger auditLogger;
+    private final ServiceMapper serviceMapper;
 
     public CamelRouteService(
             CamelContext camelContext,
@@ -69,7 +71,8 @@ public class CamelRouteService implements RouteLifecycleService, RouteQueryServi
             RouteRegistrationService routeRegistrationService,
             RouteRestCleanupService routeRestCleanupService,
             RouteEndpointCleanupService routeEndpointCleanupService,
-            AuditLogger auditLogger) {
+            AuditLogger auditLogger,
+            ServiceMapper serviceMapper) {
         this.camelContext = camelContext;
         this.versionService = versionService;
         this.routeStateService = routeStateService;
@@ -85,6 +88,7 @@ public class CamelRouteService implements RouteLifecycleService, RouteQueryServi
         this.routeRestCleanupService = routeRestCleanupService;
         this.routeEndpointCleanupService = routeEndpointCleanupService;
         this.auditLogger = auditLogger;
+        this.serviceMapper = serviceMapper;
     }
 
     /**
@@ -392,16 +396,7 @@ public class CamelRouteService implements RouteLifecycleService, RouteQueryServi
 
     private List<ServiceDTO> getAllServices() {
         return serviceRepository.findAll().stream()
-                .map(
-                        entity -> {
-                            var s = new ServiceDTO();
-                            s.setId(entity.getId().toString());
-                            s.setName(entity.getName());
-                            s.setDescription(entity.getDescription());
-                            s.setCreatedAt(entity.getCreatedAt());
-                            s.setUpdatedAt(entity.getUpdatedAt());
-                            return s;
-                        })
+                .map(serviceMapper::toDto)
                 .collect(Collectors.toList());
     }
 
