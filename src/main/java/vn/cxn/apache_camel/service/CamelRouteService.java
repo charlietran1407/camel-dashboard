@@ -118,22 +118,68 @@ public class CamelRouteService implements RouteLifecycleService, RouteQueryServi
                                                 state -> state,
                                                 (s1, s2) -> s1)));
 
+        // Pre-fetch all RouteEntity records
+        Map<String, vn.cxn.apache_camel.model.entity.RouteEntity> routesMap =
+                routeRepository.findAll().stream()
+                        .collect(
+                                Collectors.toMap(
+                                        vn.cxn.apache_camel.model.entity.RouteEntity::getRouteId,
+                                        r -> r,
+                                        (r1, r2) -> r1));
+
+        // Pre-fetch and group all versions by route ID
+        List<RouteVersion> allVersions = versionService.getAllVersions();
+        Map<String, List<RouteVersion>> versionsByRouteId = new HashMap<>();
+        for (RouteVersion v : allVersions) {
+            if (v.getRouteIds() != null) {
+                for (String rId : v.getRouteIds()) {
+                    versionsByRouteId.computeIfAbsent(rId, k -> new ArrayList<>()).add(v);
+                }
+            }
+        }
+        versionsByRouteId
+                .values()
+                .forEach(list -> list.sort(Comparator.comparingInt(RouteVersion::getVersion)));
+
+        // Pre-fetch total versions count by service ID
+        Map<String, Integer> totalVersionsByServiceId = new HashMap<>();
+        allVersions.stream()
+                .filter(v -> v.getServiceId() != null)
+                .forEach(v -> totalVersionsByServiceId.merge(v.getServiceId(), 1, Integer::sum));
+
         return camelContext.getRoutes().stream()
-                .map(route -> buildRouteInfo(route, onlineNodes, statesByRouteAndNode))
+                .map(
+                        route ->
+                                buildRouteInfo(
+                                        route,
+                                        onlineNodes,
+                                        statesByRouteAndNode,
+                                        routesMap,
+                                        versionsByRouteId,
+                                        totalVersionsByServiceId))
                 .collect(Collectors.toList());
     }
 
     private RouteInfo buildRouteInfo(
             Route route,
             List<ClusterNodeEntity> onlineNodes,
-            Map<String, Map<String, RouteRuntimeStateEntity>> statesByRouteAndNode) {
+            Map<String, Map<String, RouteRuntimeStateEntity>> statesByRouteAndNode,
+            Map<String, vn.cxn.apache_camel.model.entity.RouteEntity> routesMap,
+            Map<String, List<RouteVersion>> versionsByRouteId,
+            Map<String, Integer> totalVersionsByServiceId) {
         String id = route.getId();
         String sourceUri = route.getEndpoint() != null ? route.getEndpoint().getEndpointUri() : "";
         String defaultDescription = route.getDescription();
         String status = getRouteStatus(id);
 
         // 1. Extract metadata from DB / disk fallback
-        RouteMetadata meta = routeMetadataExtractor.extractRouteMetadata(id, defaultDescription);
+        RouteMetadata meta =
+                routeMetadataExtractor.extractRouteMetadata(
+                        id,
+                        defaultDescription,
+                        routesMap,
+                        versionsByRouteId,
+                        totalVersionsByServiceId);
 
         // 2. Extract REST params dynamically
         List<RestParamInfo> restParams =

@@ -24,8 +24,9 @@ spring:
     hikari:
       maximum-pool-size: 10
       minimum-idle: 2
-      idle-timeout: 30000
+      idle-timeout: 60000
       connection-timeout: 20000
+      max-lifetime: 1800000
   jpa:
     database: postgresql
     database-platform: org.hibernate.dialect.PostgreSQLDialect
@@ -70,7 +71,7 @@ camel:
     use-mdc-logging: true
   rest:
     component: platform-http
-    context-path: "${CAMEL_CONTEXT_PATH:cameldash}" # Ex: /cameldash
+    context-path: "${CAMEL_CONTEXT_PATH:/cameldash}" # Ex: /cameldash
   dashboard:
     storage-dir: ${CAMEL_DASHBOARD_STORAGE_DIR}
     loader-path: ${CAMEL_DASHBOARD_LOADER_PATH:./libs}
@@ -81,7 +82,7 @@ camel:
     cluster:
       instance-id: "${INSTANCE_ID:${HOSTNAME}:${server.port}}"
       group: "${CAMEL_DASHBOARD_CLUSTER_GROUP:default}"
-      heartbeat-interval-ms: 10000 # send heartbeat every 10 seconds
+      heartbeat-interval-ms: 5000 # send heartbeat every 5 seconds
       enabled: ${CAMEL_DASHBOARD_CLUSTER_ENABLED:false}
       stream-key: "${CAMEL_DASHBOARD_CLUSTER_STREAM_KEY:${camel.dashboard.cluster.group}:cluster:event:stream}"
       channel: "${CAMEL_DASHBOARD_CLUSTER_CHANNEL:${camel.dashboard.cluster.group}:cluster:event:channel}"
@@ -101,3 +102,11 @@ otel:
   instrumentation:
     jdbc:
       enabled: false
+app:
+  datasource:
+    hikari:
+      min-idle: 1
+      max-pool-size: 10
+      connection-timeout: 20000
+      idle-timeout: 60000
+      max-lifetime: 1800000

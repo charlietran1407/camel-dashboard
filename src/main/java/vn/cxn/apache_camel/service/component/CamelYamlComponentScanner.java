@@ -151,7 +151,10 @@ public class CamelYamlComponentScanner {
                             });
 
             // Load routes from YAML
-            Resource resource = ResourceHelper.fromString("route.yaml", yamlContent);
+            String cleanContent =
+                    vn.cxn.apache_camel.util.CamelYamlParser.stripNonScriptingBeansAndMetadata(
+                            yamlContent);
+            Resource resource = ResourceHelper.fromString("route.yaml", cleanContent);
             PluginHelper.getRoutesLoader(context).loadRoutes(resource);
 
             // Traverse route definitions to extract schemes

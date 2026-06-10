@@ -106,14 +106,18 @@ public class DependencyValidationStepImpl implements RouteValidationStep {
         collectMatches("bean:([a-zA-Z0-9_-]+)", context.content(), usedBeans);
         collectMatches("method:[ \\t]*[\"']?([a-zA-Z0-9_-]+)[\"']?", context.content(), usedBeans);
 
+        Set<String> registeredBeanNames =
+                dynamicBeanService.getAllBeans().stream()
+                        .map(vn.cxn.apache_camel.model.dto.BeanInfo::getBeanName)
+                        .collect(java.util.stream.Collectors.toSet());
+
         for (String bean : usedBeans) {
             if (IGNORE_BEANS.contains(bean)) {
                 continue;
             }
             boolean exists =
                     camelContext.getRegistry().lookupByName(bean) != null
-                            || dynamicBeanService.getAllBeans().stream()
-                                    .anyMatch(b -> b.getBeanName().equals(bean));
+                            || registeredBeanNames.contains(bean);
             if (!exists) {
                 context.result()
                         .getWarnings()

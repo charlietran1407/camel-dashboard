@@ -16,8 +16,10 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.cxn.apache_camel.model.dto.RouteVersion;
+import vn.cxn.apache_camel.model.entity.RouteEntity;
 import vn.cxn.apache_camel.model.entity.RouteVersionEntity;
 import vn.cxn.apache_camel.model.entity.ServiceEntity;
+import vn.cxn.apache_camel.repository.RouteRepository;
 import vn.cxn.apache_camel.repository.RouteVersionRepository;
 import vn.cxn.apache_camel.repository.ServiceRepository;
 import vn.cxn.apache_camel.service.mapper.RouteVersionMapper;
@@ -34,6 +36,7 @@ public class RouteVersionService {
 
     private final RouteVersionRepository versionRepository;
     private final ServiceRepository serviceRepository;
+    private final RouteRepository routeRepository;
     private final org.apache.camel.CamelContext camelContext;
     private final RouteStateService routeStateService;
     private final ClusterNodeService clusterNodeService;
@@ -51,6 +54,7 @@ public class RouteVersionService {
     public RouteVersionService(
             RouteVersionRepository versionRepository,
             ServiceRepository serviceRepository,
+            RouteRepository routeRepository,
             @org.springframework.context.annotation.Lazy org.apache.camel.CamelContext camelContext,
             RouteStateService routeStateService,
             ClusterNodeService clusterNodeService,
@@ -60,6 +64,7 @@ public class RouteVersionService {
             RouteVersionMapper routeVersionMapper) {
         this.versionRepository = versionRepository;
         this.serviceRepository = serviceRepository;
+        this.routeRepository = routeRepository;
         this.camelContext = camelContext;
         this.routeStateService = routeStateService;
         this.clusterNodeService = clusterNodeService;
@@ -272,6 +277,22 @@ public class RouteVersionService {
                 .filter(v -> v.getRouteIds() != null && v.getRouteIds().contains(routeId))
                 .sorted(Comparator.comparingInt(RouteVersion::getVersion))
                 .collect(Collectors.toList());
+    }
+
+    public Optional<RouteVersion> getActiveVersionByRouteId(String routeId) {
+        try {
+            Optional<RouteEntity> routeEntityOpt = routeRepository.findById(routeId);
+            if (routeEntityOpt.isPresent() && routeEntityOpt.get().getVersion() != null) {
+                RouteVersionEntity versionEntity = routeEntityOpt.get().getVersion();
+                return Optional.of(routeVersionMapper.toModel(versionEntity));
+            }
+        } catch (Exception e) {
+            log.warn(
+                    "Failed to find RouteEntity by routeId '{}' in DB: {}",
+                    routeId,
+                    e.getMessage());
+        }
+        return Optional.empty();
     }
 
     public Optional<RouteVersion> getVersionById(String versionId) {

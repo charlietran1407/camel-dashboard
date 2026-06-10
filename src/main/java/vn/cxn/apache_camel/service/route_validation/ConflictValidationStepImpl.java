@@ -27,6 +27,9 @@ public class ConflictValidationStepImpl implements RouteValidationStep {
     @Override
     public boolean validate(RouteValidationContext context) {
         List<RouteVersion> candidates = routeVersionService.getAllVersions();
+        String targetApiContextPathSignature =
+                routeVersionService.getApiContextPathSignature(
+                        context.fileName(), context.content());
         for (RouteVersion activeVersion : candidates) {
             if (!activeVersion.isAutoRestore()) {
                 continue;
@@ -37,7 +40,7 @@ public class ConflictValidationStepImpl implements RouteValidationStep {
             }
 
             validateRouteIdCollisions(context, activeVersion);
-            validateSignatureCollisions(context, activeVersion);
+            validateSignatureCollisions(context, activeVersion, targetApiContextPathSignature);
         }
         return true;
     }
@@ -77,12 +80,10 @@ public class ConflictValidationStepImpl implements RouteValidationStep {
     }
 
     private void validateSignatureCollisions(
-            RouteValidationContext context, RouteVersion activeVersion) {
+            RouteValidationContext context,
+            RouteVersion activeVersion,
+            String targetApiContextPathSignature) {
         try {
-            String targetApiContextPathSignature =
-                    routeVersionService.getApiContextPathSignature(
-                            context.fileName(), context.content());
-
             String activeContent = routeVersionService.getContentFromDisk(activeVersion.getId());
             String activeApiContextPathSignature =
                     routeVersionService.getApiContextPathSignature(

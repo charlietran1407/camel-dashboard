@@ -16,6 +16,7 @@ const versions = ref([]);
 const uploadServiceId = ref('');
 const textServiceId = ref('');
 const queue = ref([]);
+const isDragOver = ref(false);
 
 const resolver = ref(zodResolver(
   z.object({
@@ -63,6 +64,21 @@ function addFiles(files) {
       queue.value.push(item);
     }
   });
+}
+
+function onDrop(event) {
+  isDragOver.value = false;
+  if (event.dataTransfer && event.dataTransfer.files) {
+    const files = [...event.dataTransfer.files].filter(file => {
+      const name = file.name.toLowerCase();
+      return name.endsWith('.yaml') || name.endsWith('.yml');
+    });
+    if (files.length > 0) {
+      addFiles(files);
+    } else {
+      toast(t('upload.invalid_file_type') || 'Only .yaml/.yml files are allowed', 'warning');
+    }
+  }
 }
 
 async function uploadAll() {
@@ -154,7 +170,14 @@ watch(() => props.refreshKey, load);
             <label class="block mb-[0.4rem] text-[0.82rem] font-semibold">{{ t('nav.services') }}</label>
             <Select v-model="uploadServiceId" :options="services" optionValue="id" optionLabel="name" :placeholder="t('services.select_placeholder')" class="w-full" />
           </div>
-          <label class="drop-zone">
+          <label
+            class="drop-zone"
+            :class="{ dragover: isDragOver }"
+            @dragover.prevent="isDragOver = true"
+            @dragenter.prevent="isDragOver = true"
+            @dragleave.prevent="isDragOver = false"
+            @drop.prevent="onDrop"
+          >
             <input type="file" accept=".yaml,.yml" multiple hidden @change="addFiles([...$event.target.files]); $event.target.value = ''" />
             <strong>{{ t('upload.dropzone') }}</strong>
             <span>{{ t('upload.or') }} {{ t('upload.select_file') }}</span>
@@ -271,5 +294,11 @@ watch(() => props.refreshKey, load);
     text-transform: uppercase;
     font-size: 0.78rem;
     color: var(--text-muted);
+}
+
+.drop-zone.dragover {
+    border-color: var(--accent);
+    background: rgba(99, 102, 241, 0.08) !important;
+    color: var(--text);
 }
 </style>

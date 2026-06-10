@@ -340,6 +340,115 @@ class RouteVersionServiceTest {
                 .contains("rest:/api/v2/api-doc", "rest:/api/v2/users", "rest:/api/v2/users/{id}");
     }
 
+    @Test
+    void getActiveVersionByRouteIdRetrievesActiveVersionFromRouteEntity() throws Exception {
+        vn.cxn.apache_camel.repository.RouteRepository routeRepo =
+                org.mockito.Mockito.mock(vn.cxn.apache_camel.repository.RouteRepository.class);
+        vn.cxn.apache_camel.repository.ServiceRepository serviceRepo =
+                org.mockito.Mockito.mock(vn.cxn.apache_camel.repository.ServiceRepository.class);
+        vn.cxn.apache_camel.repository.RouteVersionRepository versionRepo =
+                org.mockito.Mockito.mock(
+                        vn.cxn.apache_camel.repository.RouteVersionRepository.class);
+        org.apache.camel.CamelContext camelContext =
+                org.mockito.Mockito.mock(org.apache.camel.CamelContext.class);
+        RouteStateService routeStateService = org.mockito.Mockito.mock(RouteStateService.class);
+        ClusterNodeService clusterNodeService = org.mockito.Mockito.mock(ClusterNodeService.class);
+        org.springframework.beans.factory.ObjectProvider<
+                        org.springframework.data.redis.core.RedisTemplate<String, Object>>
+                redisTemplateProvider =
+                        org.mockito.Mockito.mock(
+                                org.springframework.beans.factory.ObjectProvider.class);
+
+        RouteVersionService service =
+                new RouteVersionService(
+                        versionRepo,
+                        serviceRepo,
+                        routeRepo,
+                        camelContext,
+                        routeStateService,
+                        clusterNodeService,
+                        redisTemplateProvider,
+                        java.util.List.of(new YamlRouteDocumentStrategyImpl()),
+                        new RouteVersionMapperImpl(
+                                new com.fasterxml.jackson.databind.ObjectMapper(),
+                                camelContext,
+                                routeRepo));
+        ReflectionTestUtils.setField(service, "storageDir", storageDir.toString());
+        service.init();
+
+        String routeId = "test-route";
+        vn.cxn.apache_camel.model.entity.RouteEntity routeEntity =
+                new vn.cxn.apache_camel.model.entity.RouteEntity();
+        routeEntity.setRouteId(routeId);
+
+        vn.cxn.apache_camel.model.entity.RouteVersionEntity versionEntity =
+                new vn.cxn.apache_camel.model.entity.RouteVersionEntity();
+        versionEntity.setId(java.util.UUID.randomUUID());
+        versionEntity.setVersion(5);
+        versionEntity.setFileName("test-route.camel.yaml");
+        versionEntity.setAutoRestore(false);
+
+        vn.cxn.apache_camel.model.entity.ServiceEntity se =
+                new vn.cxn.apache_camel.model.entity.ServiceEntity();
+        se.setId(java.util.UUID.randomUUID());
+        se.setName("test-service");
+        versionEntity.setService(se);
+
+        routeEntity.setVersion(versionEntity);
+
+        org.mockito.Mockito.when(routeRepo.findById(routeId))
+                .thenReturn(java.util.Optional.of(routeEntity));
+
+        java.util.Optional<RouteVersion> activeOpt = service.getActiveVersionByRouteId(routeId);
+        assertThat(activeOpt).isPresent();
+        assertThat(activeOpt.get().getVersion()).isEqualTo(5);
+        assertThat(activeOpt.get().getFileName()).isEqualTo("test-route.camel.yaml");
+    }
+
+    @Test
+    void getActiveVersionByRouteIdReturnsEmptyWhenRouteNotFound() throws Exception {
+        vn.cxn.apache_camel.repository.RouteRepository routeRepo =
+                org.mockito.Mockito.mock(vn.cxn.apache_camel.repository.RouteRepository.class);
+        vn.cxn.apache_camel.repository.ServiceRepository serviceRepo =
+                org.mockito.Mockito.mock(vn.cxn.apache_camel.repository.ServiceRepository.class);
+        vn.cxn.apache_camel.repository.RouteVersionRepository versionRepo =
+                org.mockito.Mockito.mock(
+                        vn.cxn.apache_camel.repository.RouteVersionRepository.class);
+        org.apache.camel.CamelContext camelContext =
+                org.mockito.Mockito.mock(org.apache.camel.CamelContext.class);
+        RouteStateService routeStateService = org.mockito.Mockito.mock(RouteStateService.class);
+        ClusterNodeService clusterNodeService = org.mockito.Mockito.mock(ClusterNodeService.class);
+        org.springframework.beans.factory.ObjectProvider<
+                        org.springframework.data.redis.core.RedisTemplate<String, Object>>
+                redisTemplateProvider =
+                        org.mockito.Mockito.mock(
+                                org.springframework.beans.factory.ObjectProvider.class);
+
+        RouteVersionService service =
+                new RouteVersionService(
+                        versionRepo,
+                        serviceRepo,
+                        routeRepo,
+                        camelContext,
+                        routeStateService,
+                        clusterNodeService,
+                        redisTemplateProvider,
+                        java.util.List.of(new YamlRouteDocumentStrategyImpl()),
+                        new RouteVersionMapperImpl(
+                                new com.fasterxml.jackson.databind.ObjectMapper(),
+                                camelContext,
+                                routeRepo));
+        ReflectionTestUtils.setField(service, "storageDir", storageDir.toString());
+        service.init();
+
+        String routeId = "test-route";
+        org.mockito.Mockito.when(routeRepo.findById(routeId))
+                .thenReturn(java.util.Optional.empty());
+
+        java.util.Optional<RouteVersion> activeOpt = service.getActiveVersionByRouteId(routeId);
+        assertThat(activeOpt).isEmpty();
+    }
+
     private RouteVersionService newService() {
         vn.cxn.apache_camel.repository.ServiceRepository serviceRepo =
                 org.mockito.Mockito.mock(vn.cxn.apache_camel.repository.ServiceRepository.class);
@@ -433,6 +542,7 @@ class RouteVersionServiceTest {
                 new RouteVersionService(
                         versionRepo,
                         serviceRepo,
+                        routeRepo,
                         camelContext,
                         routeStateService,
                         clusterNodeService,

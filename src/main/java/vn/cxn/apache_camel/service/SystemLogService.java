@@ -122,9 +122,9 @@ public class SystemLogService {
                 systemLogRepository.findTopNByOrderByTimestampDesc(PageRequest.of(0, MAX_LOGS));
         List<String> keepIds =
                 keep.stream().map(SystemLogEntity::getId).collect(Collectors.toList());
-        systemLogRepository.findAll().stream()
-                .filter(e -> !keepIds.contains(e.getId()))
-                .forEach(systemLogRepository::delete);
+        if (!keepIds.isEmpty()) {
+            systemLogRepository.deleteByIdNotIn(keepIds);
+        }
     }
 
     private SystemLog toDto(SystemLogEntity entity) {

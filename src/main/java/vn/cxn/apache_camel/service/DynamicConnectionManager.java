@@ -242,10 +242,12 @@ public class DynamicConnectionManager implements AutoCloseable {
     public void close() {
         log.info(
                 "Shutting down DynamicConnectionManager. Closing all registered database pools...");
-        for (String dbId : registryCache.keySet()) {
+        Set<String> sqlDbIds = new java.util.HashSet<>(registryCache.keySet());
+        for (String dbId : sqlDbIds) {
             unregisterDatabase(dbId);
         }
-        for (String dbId : mongoRegistryCache.keySet()) {
+        Set<String> mongoDbIds = new java.util.HashSet<>(mongoRegistryCache.keySet());
+        for (String dbId : mongoDbIds) {
             unregisterDatabase(dbId);
         }
     }

@@ -110,22 +110,23 @@ public class RouteManagementController {
 
     /** DELETE /api/routes/{routeId} */
     /*
-    @DeleteMapping("/{routeId}")
-    public ResponseEntity<Map<String, Object>> deleteRoute(@PathVariable String routeId) {
-        try {
-            boolean removed = routeLifecycleService.removeRoute(routeId);
-            if (removed) {
-                return ResponseEntity.ok(
-                        Map.of("routeId", routeId, "removed", true, "message", "Route removed"));
-            } else {
-                return ResponseEntity.status(404)
-                        .body(Map.of("error", "Route not found: " + routeId));
-            }
-        } catch (Exception e) {
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
-        }
-    }
-    */
+     * @DeleteMapping("/{routeId}")
+     * public ResponseEntity<Map<String, Object>> deleteRoute(@PathVariable String
+     * routeId) {
+     * try {
+     * boolean removed = routeLifecycleService.removeRoute(routeId);
+     * if (removed) {
+     * return ResponseEntity.ok(
+     * Map.of("routeId", routeId, "removed", true, "message", "Route removed"));
+     * } else {
+     * return ResponseEntity.status(404)
+     * .body(Map.of("error", "Route not found: " + routeId));
+     * }
+     * } catch (Exception e) {
+     * return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+     * }
+     * }
+     */
 
     /** POST /api/routes/deploy/{versionId} - deploy from a specific uploaded version */
     @PostMapping("/deploy/{versionId}")
@@ -178,20 +179,7 @@ public class RouteManagementController {
     @GetMapping("/{routeId}/source")
     public ResponseEntity<?> getRouteSource(@PathVariable String routeId) {
         try {
-            List<RouteVersion> routeVersions = versionService.getVersionsByRouteId(routeId);
-            Optional<RouteVersion> activeOpt =
-                    routeVersions.stream().filter(RouteVersion::isAutoRestore).findFirst();
-
-            if (activeOpt.isEmpty()) {
-                activeOpt =
-                        versionService.getAllVersions().stream()
-                                .filter(RouteVersion::isAutoRestore)
-                                .filter(
-                                        v ->
-                                                v.getRouteIds() != null
-                                                        && v.getRouteIds().contains(routeId))
-                                .findFirst();
-            }
+            Optional<RouteVersion> activeOpt = versionService.getActiveVersionByRouteId(routeId);
 
             if (activeOpt.isPresent()) {
                 RouteVersion rv = activeOpt.get();
@@ -226,20 +214,7 @@ public class RouteManagementController {
     @GetMapping("/{routeId}/mermaid")
     public ResponseEntity<?> getRouteMermaid(@PathVariable String routeId) {
         try {
-            List<RouteVersion> routeVersions = versionService.getVersionsByRouteId(routeId);
-            Optional<RouteVersion> activeOpt =
-                    routeVersions.stream().filter(RouteVersion::isAutoRestore).findFirst();
-
-            if (activeOpt.isEmpty()) {
-                activeOpt =
-                        versionService.getAllVersions().stream()
-                                .filter(RouteVersion::isAutoRestore)
-                                .filter(
-                                        v ->
-                                                v.getRouteIds() != null
-                                                        && v.getRouteIds().contains(routeId))
-                                .findFirst();
-            }
+            Optional<RouteVersion> activeOpt = versionService.getActiveVersionByRouteId(routeId);
 
             if (activeOpt.isPresent()) {
                 RouteVersion rv = activeOpt.get();

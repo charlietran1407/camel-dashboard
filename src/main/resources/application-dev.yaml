@@ -101,3 +101,11 @@ otel:
   instrumentation:
     jdbc:
       enabled: false
+app:
+  datasource:
+    hikari:
+      min-idle: 1
+      max-pool-size: 10
+      connection-timeout: 20000
+      idle-timeout: 60000
+      max-lifetime: 1800000

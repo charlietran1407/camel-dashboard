@@ -111,6 +111,130 @@ public final class CamelYamlParser {
         return content;
     }
 
+    public static String stripAllBeansAndMetadata(String content) {
+        if (content == null || content.isBlank()) {
+            return "";
+        }
+        String trimmed = content.trim();
+        if (trimmed.startsWith("<")) {
+            String cleaned = content.replaceAll("(?s)<bean\\b[^>]*>.*?</bean>", "");
+            cleaned = cleaned.replaceAll("(?s)<bean\\b[^>]*/>", "");
+            return cleaned;
+        }
+
+        try {
+            org.yaml.snakeyaml.Yaml yaml = new org.yaml.snakeyaml.Yaml();
+            Object obj = yaml.load(content);
+            if (obj instanceof List) {
+                List<Object> newList = new ArrayList<>();
+                for (Object element : (List<Object>) obj) {
+                    if (element instanceof Map) {
+                        Map<String, Object> map = (Map<String, Object>) element;
+                        if (map.containsKey("metadata")) {
+                            continue;
+                        }
+                        if (map.containsKey("beans")) {
+                            continue;
+                        }
+                        newList.add(element);
+                    } else {
+                        newList.add(element);
+                    }
+                }
+                return yaml.dump(newList);
+            } else if (obj instanceof Map) {
+                Map<String, Object> map = new LinkedHashMap<>((Map<String, Object>) obj);
+                map.remove("metadata");
+                map.remove("beans");
+                return yaml.dump(map);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to strip metadata and beans using SnakeYAML: {}", e.getMessage());
+        }
+        return content;
+    }
+
+    @SuppressWarnings("unchecked")
+    public static String stripNonScriptingBeansAndMetadata(String content) {
+        if (content == null || content.isBlank()) {
+            return "";
+        }
+        String trimmed = content.trim();
+        if (trimmed.startsWith("<")) {
+            return content;
+        }
+
+        try {
+            org.yaml.snakeyaml.Yaml yaml = new org.yaml.snakeyaml.Yaml();
+            Object obj = yaml.load(content);
+            if (obj instanceof List) {
+                List<Object> newList = new ArrayList<>();
+                for (Object element : (List<Object>) obj) {
+                    if (element instanceof Map) {
+                        Map<String, Object> map = (Map<String, Object>) element;
+                        if (map.containsKey("metadata")) {
+                            continue;
+                        }
+                        if (map.containsKey("beans")) {
+                            Object beansObj = map.get("beans");
+                            if (beansObj instanceof List) {
+                                List<Object> beansList = (List<Object>) beansObj;
+                                List<Object> filteredBeans = new ArrayList<>();
+                                for (Object beanEl : beansList) {
+                                    if (beanEl instanceof Map) {
+                                        Map<String, Object> beanMap = (Map<String, Object>) beanEl;
+                                        if (beanMap.containsKey("scriptLanguage")
+                                                || beanMap.containsKey("script-language")) {
+                                            filteredBeans.add(beanEl);
+                                        }
+                                    }
+                                }
+                                if (!filteredBeans.isEmpty()) {
+                                    Map<String, Object> newMap = new LinkedHashMap<>(map);
+                                    newMap.put("beans", filteredBeans);
+                                    newList.add(newMap);
+                                }
+                            }
+                        } else {
+                            newList.add(element);
+                        }
+                    } else {
+                        newList.add(element);
+                    }
+                }
+                return yaml.dump(newList);
+            } else if (obj instanceof Map) {
+                Map<String, Object> map = new LinkedHashMap<>((Map<String, Object>) obj);
+                map.remove("metadata");
+                if (map.containsKey("beans")) {
+                    Object beansObj = map.get("beans");
+                    if (beansObj instanceof List) {
+                        List<Object> beansList = (List<Object>) beansObj;
+                        List<Object> filteredBeans = new ArrayList<>();
+                        for (Object beanEl : beansList) {
+                            if (beanEl instanceof Map) {
+                                Map<String, Object> beanMap = (Map<String, Object>) beanEl;
+                                if (beanMap.containsKey("scriptLanguage")
+                                        || beanMap.containsKey("script-language")) {
+                                    filteredBeans.add(beanEl);
+                                }
+                            }
+                        }
+                        if (filteredBeans.isEmpty()) {
+                            map.remove("beans");
+                        } else {
+                            map.put("beans", filteredBeans);
+                        }
+                    }
+                }
+                return yaml.dump(map);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to strip non-scripting beans using SnakeYAML: {}", e.getMessage());
+        }
+        return content;
+    }
+
     /** Extracts REST paths from a YAML/XML definition using a lightweight CamelContext. */
     public static Set<String> extractRestPathsFromYaml(String content) {
         Set<String> paths = new HashSet<>();
@@ -124,8 +248,10 @@ public final class CamelYamlParser {
             resourceName = "temp.xml";
         }
 
+        String cleanedContent = stripAllBeansAndMetadata(content);
+
         try (DefaultCamelContext tempContext = new DefaultCamelContext()) {
-            Resource resource = ResourceHelper.fromString(resourceName, content);
+            Resource resource = ResourceHelper.fromString(resourceName, cleanedContent);
             PluginHelper.getRoutesLoader(tempContext).loadRoutes(resource);
 
             List<RestDefinition> restDefinitions = tempContext.getRestDefinitions();
@@ -161,8 +287,10 @@ public final class CamelYamlParser {
             resourceName = "temp.xml";
         }
 
+        String cleanedContent = stripAllBeansAndMetadata(content);
+
         try (DefaultCamelContext tempContext = new DefaultCamelContext()) {
-            Resource resource = ResourceHelper.fromString(resourceName, content);
+            Resource resource = ResourceHelper.fromString(resourceName, cleanedContent);
             PluginHelper.getRoutesLoader(tempContext).loadRoutes(resource);
 
             List<RestDefinition> restDefinitions = tempContext.getRestDefinitions();

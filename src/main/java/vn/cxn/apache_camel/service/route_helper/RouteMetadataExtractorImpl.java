@@ -95,4 +95,75 @@ public class RouteMetadataExtractorImpl implements RouteMetadataExtractor {
                 updatedAt,
                 deployedAt);
     }
+
+    @Override
+    public RouteMetadata extractRouteMetadata(
+            String id,
+            String defaultDescription,
+            java.util.Map<String, RouteEntity> routesMap,
+            java.util.Map<String, List<RouteVersion>> versionsByRouteId,
+            java.util.Map<String, Integer> totalVersionsByServiceId) {
+        int activeVersion = 0;
+        Instant deployedAt = null;
+        boolean persistent = false;
+        Instant createdAt = null;
+        Instant updatedAt = null;
+        int totalVersions = 0;
+        String originalId = id;
+        String serviceId = null;
+        String description = defaultDescription;
+
+        RouteEntity re = routesMap.get(id);
+        if (re != null) {
+            persistent = true;
+            createdAt = re.getCreatedAt();
+            updatedAt = re.getUpdatedAt();
+            originalId = re.getOriginalRouteId();
+            if (re.getDescription() != null && !re.getDescription().isBlank()) {
+                description = re.getDescription();
+            }
+
+            RouteVersionEntity rve = re.getVersion();
+            if (rve != null) {
+                activeVersion = rve.getVersion();
+                deployedAt = rve.getUploadedAt();
+                serviceId = rve.getService().getId().toString();
+                totalVersions = totalVersionsByServiceId.getOrDefault(serviceId, 0);
+            }
+        } else {
+            List<RouteVersion> routeVersions = versionsByRouteId.getOrDefault(id, List.of());
+            totalVersions = routeVersions.size();
+            Optional<RouteVersion> activeVersionOpt =
+                    routeVersions.stream().filter(RouteVersion::isAutoRestore).findFirst();
+            if (activeVersionOpt.isPresent()) {
+                RouteVersion v = activeVersionOpt.get();
+                activeVersion = v.getVersion();
+                deployedAt = v.getDeployedAt();
+                persistent = true;
+                createdAt = v.getCreatedAt();
+                updatedAt = v.getUpdatedAt();
+                String storedDescription = versionService.getRouteDescription(v, id);
+                if (storedDescription != null && !storedDescription.isBlank()) {
+                    description = storedDescription;
+                }
+                originalId = versionService.getOriginalRouteId(v, id);
+                serviceId = v.getServiceId();
+            }
+        }
+
+        if (serviceId == null && id != null && id.startsWith("svc_") && id.contains("__")) {
+            serviceId = id.substring(4, id.indexOf("__"));
+        }
+
+        return new RouteMetadata(
+                originalId,
+                serviceId,
+                description,
+                activeVersion,
+                totalVersions,
+                persistent,
+                createdAt,
+                updatedAt,
+                deployedAt);
+    }
 }

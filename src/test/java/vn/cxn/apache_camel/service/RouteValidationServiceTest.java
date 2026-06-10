@@ -112,6 +112,7 @@ class RouteValidationServiceTest {
                 new RouteVersionService(
                         versionRepo,
                         serviceRepo,
+                        routeRepo,
                         mainCamelContext,
                         routeStateService,
                         clusterNodeService,

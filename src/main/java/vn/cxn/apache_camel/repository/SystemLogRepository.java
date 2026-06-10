@@ -25,4 +25,11 @@ public interface SystemLogRepository extends JpaRepository<SystemLogEntity, Stri
     /** Keep only the latest N logs across all types (trim old logs) */
     @Query("SELECT e FROM SystemLogEntity e ORDER BY e.timestamp DESC")
     List<SystemLogEntity> findTopNByOrderByTimestampDesc(Pageable pageable);
+
+    /** Delete logs whose IDs are not in the given collection of IDs */
+    @Modifying
+    @Query("DELETE FROM SystemLogEntity e WHERE e.id NOT IN :ids")
+    void deleteByIdNotIn(
+            @org.springframework.data.repository.query.Param("ids")
+                    java.util.Collection<String> ids);
 }

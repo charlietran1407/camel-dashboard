@@ -152,6 +152,23 @@ public class LoaderPathDependencyService {
             while (entries.hasMoreElements()) {
                 java.util.jar.JarEntry entry = entries.nextElement();
                 String name = entry.getName();
+                if (name.startsWith("META-INF/maven/") && name.endsWith("/pom.properties")) {
+                    if (Thread.currentThread().getContextClassLoader().getResource(name) != null) {
+                        log.debug(
+                                "Skipping {} because resource {} is already on the classpath",
+                                jar.getName(),
+                                name);
+                        return true;
+                    }
+                }
+            }
+
+            // Fallback: check only the first 5 classes to avoid scanning the entire JAR
+            int classChecked = 0;
+            entries = jarFile.entries();
+            while (entries.hasMoreElements()) {
+                java.util.jar.JarEntry entry = entries.nextElement();
+                String name = entry.getName();
                 if (name.endsWith(".class")
                         && !name.contains("$")
                         && !name.startsWith("META-INF/")
@@ -168,6 +185,10 @@ public class LoaderPathDependencyService {
                         return true;
                     } catch (ClassNotFoundException ignored) {
                         // Class not present; keep searching
+                    }
+                    classChecked++;
+                    if (classChecked >= 5) {
+                        break;
                     }
                 }
             }

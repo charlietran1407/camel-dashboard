@@ -15,6 +15,15 @@ public class DynamicComponentFactoryImpl implements DynamicComponentFactory {
     @Value("${app.datasource.hikari.max-pool-size:10}")
     private int maxPoolSize;
 
+    @Value("${app.datasource.hikari.connection-timeout:20000}")
+    private long connectionTimeout;
+
+    @Value("${app.datasource.hikari.idle-timeout:600000}")
+    private long idleTimeout;
+
+    @Value("${app.datasource.hikari.max-lifetime:1800000}")
+    private long maxLifetime;
+
     @Override
     public DataSource createDataSource(String url, String username, String password) {
         HikariDataSource dataSource = new HikariDataSource();
@@ -23,9 +32,9 @@ public class DynamicComponentFactoryImpl implements DynamicComponentFactory {
         dataSource.setPassword(password);
         dataSource.setMinimumIdle(minIdle);
         dataSource.setMaximumPoolSize(maxPoolSize);
-        dataSource.setConnectionTimeout(30000);
-        dataSource.setIdleTimeout(600000);
-        dataSource.setMaxLifetime(1800000);
+        dataSource.setConnectionTimeout(connectionTimeout);
+        dataSource.setIdleTimeout(idleTimeout);
+        dataSource.setMaxLifetime(maxLifetime);
         return dataSource;
     }
 
