@@ -633,6 +633,7 @@ public class CamelRouteService implements RouteLifecycleService, RouteQueryServi
         verbDetails.put("description", ri.description() != null ? ri.description() : "");
         verbDetails.put("consumes", parsed.consumes != null ? parsed.consumes : "");
         verbDetails.put("produces", parsed.produces != null ? parsed.produces : "");
+        verbDetails.put("path", parsed.path != null ? parsed.path : "");
         verbDetails.put("toUri", "");
 
         List<Map<String, Object>> paramList =
@@ -714,6 +715,7 @@ public class CamelRouteService implements RouteLifecycleService, RouteQueryServi
         verbDetails.put("description", Objects.toString(verb.getDescriptionText(), ""));
         verbDetails.put("consumes", Objects.toString(verb.getConsumes(), ""));
         verbDetails.put("produces", Objects.toString(verb.getProduces(), ""));
+        verbDetails.put("path", verb.getPath() != null ? verb.getPath() : "");
         verbDetails.put("toUri", Optional.ofNullable(verb.getTo()).map(t -> t.getUri()).orElse(""));
 
         var paramList =

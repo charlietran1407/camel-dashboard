@@ -561,6 +561,9 @@ watch([currentTab, sourceContent], ([newTab, content]) => {
                         <div class="flex justify-between items-center flex-wrap gap-2">
                           <div class="flex items-center gap-3">
                             <Tag :severity="getVerbSeverity(verb.method)" :value="verb.method" class="font-mono text-xs font-bold px-2 py-0.5 rounded" />
+                            <span v-if="verb.path" class="font-mono text-sm font-semibold text-surface-900 dark:text-surface-100">
+                              {{ verb.path }}
+                            </span>
                             <span class="font-mono text-xs text-surface-600 dark:text-surface-300 font-semibold">
                               <i class="pi pi-arrow-right text-[10px] text-surface-400"></i> target: <strong>{{ verb.toUri || '-' }}</strong>
                             </span>

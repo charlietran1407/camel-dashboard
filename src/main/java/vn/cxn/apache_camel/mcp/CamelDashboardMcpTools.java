@@ -425,6 +425,39 @@ public class CamelDashboardMcpTools {
                         : "Version not found or failed to update");
     }
 
+    @Tool(
+            name = "routes_get_content",
+            description =
+                    "Lấy nội dung mã nguồn YAML của một service. Có thể lấy theo phiên bản chỉ định"
+                            + " hoặc mặc định lấy phiên bản đang chạy active.")
+    public Map<String, Object> getRouteContent(
+            @ToolParam(description = "ID của dịch vụ (service).", required = true) String serviceId,
+            @ToolParam(
+                            description =
+                                    "Số phiên bản (tùy chọn). Nếu để trống, hệ thống tự động trả về"
+                                            + " phiên bản đang active.",
+                            required = false)
+                    Integer version) {
+        return routeVersionService
+                .getActiveOrSpecifiedVersionWithContent(serviceId, version)
+                .map(
+                        v -> {
+                            Map<String, Object> result = new LinkedHashMap<>();
+                            result.put("serviceId", serviceId);
+                            result.put("version", v.getVersion());
+                            result.put("fileName", v.getFileName());
+                            result.put("content", v.getContent());
+                            result.put("message", "Route content retrieved successfully");
+                            return result;
+                        })
+                .orElseThrow(
+                        () ->
+                                new IllegalArgumentException(
+                                        "Active or specified version content not found for service:"
+                                                + " "
+                                                + serviceId));
+    }
+
     private void validateRouteUpload(String fileName, String content) {
         String normalizedFileName = fileName == null ? "" : fileName.toLowerCase(Locale.ROOT);
         if (!normalizedFileName.endsWith(".yaml") && !normalizedFileName.endsWith(".yml")) {

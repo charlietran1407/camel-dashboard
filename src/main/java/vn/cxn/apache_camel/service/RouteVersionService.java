@@ -726,4 +726,45 @@ public class RouteVersionService {
             return java.util.UUID.nameUUIDFromBytes(str.getBytes());
         }
     }
+
+    public Optional<RouteVersion> getActiveOrSpecifiedVersion(String serviceId, Integer version) {
+        List<RouteVersion> versions = getVersionsByServiceId(serviceId);
+        if (versions.isEmpty()) {
+            return Optional.empty();
+        }
+        if (version != null) {
+            return versions.stream().filter(v -> v.getVersion() == version).findFirst();
+        } else {
+            Optional<RouteVersion> active =
+                    versions.stream().filter(RouteVersion::isActive).findFirst();
+            if (active.isPresent()) {
+                return active;
+            }
+            Optional<RouteVersion> autoRestore =
+                    versions.stream().filter(RouteVersion::isAutoRestore).findFirst();
+            if (autoRestore.isPresent()) {
+                return autoRestore;
+            }
+            return Optional.of(versions.get(versions.size() - 1));
+        }
+    }
+
+    public Optional<RouteVersion> getActiveOrSpecifiedVersionWithContent(
+            String serviceId, Integer version) {
+        return getActiveOrSpecifiedVersion(serviceId, version)
+                .map(
+                        v -> {
+                            try {
+                                String content = getContentFromDisk(v.getId());
+                                v.setContent(content);
+                            } catch (IOException e) {
+                                log.warn(
+                                        "Failed to load content for version {} of service {}: {}",
+                                        v.getId(),
+                                        serviceId,
+                                        e.getMessage());
+                            }
+                            return v;
+                        });
+    }
 }

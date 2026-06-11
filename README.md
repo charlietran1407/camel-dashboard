@@ -13,6 +13,7 @@ monitor clusters, and let your AI assistant do the heavy lifting via native MCP 
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?style=flat-square&logo=postgresql)](https://www.postgresql.org/)
 [![Redis](https://img.shields.io/badge/Redis-7-DC382D?style=flat-square&logo=redis)](https://redis.io/)
 [![License](https://img.shields.io/badge/License-MIT-purple?style=flat-square)](LICENSE)
+[![Status](https://img.shields.io/badge/status-active%20development-blue?style=flat-square)](https://github.com/charlietran1407/apache-camel-dashboard)
 
 · [**📸 Screenshots**](#-screenshots) · [**🚀 Quick Start**](#-quick-start) · [**🤖 MCP Setup**](#-mcp--vibe-coding)
 
@@ -20,9 +21,12 @@ monitor clusters, and let your AI assistant do the heavy lifting via native MCP 
 
 ---
 
+> [!NOTE]
+> **Project Status**: This project is currently in the **active development stage**. Features are added regularly, and configurations or APIs may evolve. Contributions and feedback are welcome!
+
 ## ✨ What is Camel Dashboard?
 
-Camel Dashboard is a **low-code / vibe-code** platform for managing Apache Camel routes. Instead of writing Java and recompiling, you:
+Camel Dashboard is a platform for managing Apache Camel routes. Instead of writing Java and recompiling, you:
 
 1. ✍️ **Write YAML** — using the standard Apache Camel YAML DSL (or ask AI to write it)
 2. ⬆️ **Upload** — validate and upload to the dashboard

@@ -48,7 +48,8 @@ export const dashboardApi = {
     list: () => apiFetch('/api/services'),
     create: payload => apiFetch('/api/services', { method: 'POST', body: JSON.stringify(payload) }),
     update: (id, payload) => apiFetch(`/api/services/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(payload) }),
-    delete: id => apiFetch(`/api/services/${encodeURIComponent(id)}`, { method: 'DELETE' })
+    delete: id => apiFetch(`/api/services/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+    getContent: (id, version) => apiFetch(`/api/services/${encodeURIComponent(id)}/content${version ? `?version=${version}` : ''}`)
   },
   routes: {
     list: () => apiFetch('/api/routes'),

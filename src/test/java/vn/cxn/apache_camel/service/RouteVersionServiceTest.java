@@ -582,4 +582,46 @@ class RouteVersionServiceTest {
                             return null;
                         });
     }
+
+    @Test
+    void getActiveOrSpecifiedVersionFallsBackCorrectly() throws Exception {
+        RouteVersionService service = newService();
+
+        // 1. empty service versions
+        assertThat(service.getActiveOrSpecifiedVersion("empty-service", null)).isEmpty();
+
+        // 2. upload multiple versions
+        RouteVersion v1 =
+                service.uploadRoute("test-service", "route1.yaml", "- from: timer:tick1", "v1");
+        RouteVersion v2 =
+                service.uploadRoute("test-service", "route2.yaml", "- from: timer:tick2", "v2");
+        RouteVersion v3 =
+                service.uploadRoute("test-service", "route3.yaml", "- from: timer:tick3", "v3");
+
+        // 3. fetch specified version
+        java.util.Optional<RouteVersion> found =
+                service.getActiveOrSpecifiedVersion("test-service", 2);
+        assertThat(found).isPresent();
+        assertThat(found.get().getVersion()).isEqualTo(2);
+
+        // 4. default falls back to latest version (v3) since none is active/auto-restore
+        java.util.Optional<RouteVersion> activeFallback =
+                service.getActiveOrSpecifiedVersion("test-service", null);
+        assertThat(activeFallback).isPresent();
+        assertThat(activeFallback.get().getVersion()).isEqualTo(3);
+
+        // 5. check auto-restore fallback
+        service.updateAutoRestoreStatus(v2.getId(), true);
+        java.util.Optional<RouteVersion> autoRestoreFallback =
+                service.getActiveOrSpecifiedVersion("test-service", null);
+        assertThat(autoRestoreFallback).isPresent();
+        // v2 is now auto-restore, so we fallback to v2
+        assertThat(autoRestoreFallback.get().getVersion()).isEqualTo(2);
+
+        // 6. get content test
+        java.util.Optional<RouteVersion> contentOpt =
+                service.getActiveOrSpecifiedVersionWithContent("test-service", 1);
+        assertThat(contentOpt).isPresent();
+        assertThat(contentOpt.get().getContent()).isEqualTo("- from: timer:tick1");
+    }
 }

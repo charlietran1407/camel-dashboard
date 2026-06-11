@@ -188,6 +188,25 @@ async function deleteVersion(version) {
   });
 }
 
+async function downloadVersion(version) {
+  try {
+    const detail = await dashboardApi.versions.getContent(version.id);
+    const content = detail.content || '';
+    const blob = new Blob([content], { type: 'text/yaml' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = version.fileName || `route_v${version.version}.yaml`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+    toast(t('toast.download_success'), 'success');
+  } catch (error) {
+    toast(t('common.error') + error.message, 'error');
+  }
+}
+
 function showWarnings(version) {
   warningsTitle.value = `${t('versions.warnings_title')}: ${version.fileName} (v${version.version})`;
   activeWarnings.value = version.warnings || [];
@@ -260,6 +279,8 @@ watch(previewContent, (content) => {
                     <div class="btn-group">
                       <Button variant="outlined" severity="secondary" icon="pi pi-eye" size="small"
                         @click="previewVersion(version)" />
+                      <Button variant="outlined" severity="secondary" icon="pi pi-download" size="small"
+                        @click="downloadVersion(version)" :title="t('versions.download_tooltip')" />
                       <Button  variant="outlined" severity="success" icon="pi pi-send" size="small"
                         :loading="deployingVersionId === version.id" :disabled="deployingVersionId !== null"
                         @click="quickDeploy(version)" :label="t('common.deploy_action')" />
