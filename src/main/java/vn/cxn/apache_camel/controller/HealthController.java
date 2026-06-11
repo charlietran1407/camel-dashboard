@@ -4,6 +4,8 @@ import java.lang.management.ManagementFactory;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.apache.camel.CamelContext;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.info.BuildProperties;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -13,6 +15,9 @@ import org.springframework.web.bind.annotation.*;
 public class HealthController {
 
     private final CamelContext camelContext;
+
+    @Autowired(required = false)
+    private BuildProperties buildProperties;
 
     public HealthController(CamelContext camelContext) {
         this.camelContext = camelContext;
@@ -34,6 +39,9 @@ public class HealthController {
         result.put("camelVersion", camelContext.getVersion());
         result.put("uptimeSeconds", uptimeSec);
         result.put("routeCount", camelContext.getRoutesSize());
+
+        String appVersion = (buildProperties != null) ? buildProperties.getVersion() : "1.0.0-dev";
+        result.put("version", appVersion);
 
         return ResponseEntity.ok(result);
     }

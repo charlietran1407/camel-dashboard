@@ -11,6 +11,7 @@ import vn.cxn.apache_camel.model.entity.RouteVersionEntity;
 import vn.cxn.apache_camel.repository.RouteRepository;
 import vn.cxn.apache_camel.repository.RouteVersionRepository;
 import vn.cxn.apache_camel.service.RouteVersionService;
+import vn.cxn.apache_camel.util.CamelRouteUtil;
 
 @Service
 public class RouteMetadataExtractorImpl implements RouteMetadataExtractor {
@@ -80,8 +81,12 @@ public class RouteMetadataExtractorImpl implements RouteMetadataExtractor {
             }
         }
 
-        if (serviceId == null && id != null && id.startsWith("svc_") && id.contains("__")) {
-            serviceId = id.substring(4, id.indexOf("__"));
+        if (serviceId == null
+                && id != null
+                && id.startsWith(CamelRouteUtil.SERVICE_ROUTE_PREFIX)
+                && id.contains("__")) {
+            serviceId =
+                    id.substring(CamelRouteUtil.SERVICE_ROUTE_PREFIX.length(), id.indexOf("__"));
         }
 
         return new RouteMetadata(

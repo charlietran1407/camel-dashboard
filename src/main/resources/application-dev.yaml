@@ -11,6 +11,9 @@ spring:
       - org.springframework.boot.data.redis.autoconfigure.DataRedisReactiveAutoConfiguration
   application:
     name: apache-camel-dashboard
+  threads:
+    virtual:
+      enabled: true
   data:
     redis:
       host: localhost

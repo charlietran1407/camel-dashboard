@@ -99,7 +99,7 @@ public final class CamelYamlUtils {
                 || originalRouteId.isBlank()) {
             return originalRouteId;
         }
-        String prefix = "svc_" + serviceId.replaceAll("[^A-Za-z0-9_-]", "_") + "__";
+        String prefix = CamelRouteUtil.getServicePrefix(serviceId);
         if (originalRouteId.startsWith(prefix)) {
             return originalRouteId;
         }

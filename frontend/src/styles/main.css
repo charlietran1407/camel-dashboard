@@ -60,10 +60,23 @@ textarea {
     padding: 1rem;
     z-index: 20;
     transition: var(--transition);
+    display: flex;
+    flex-direction: column;
 }
 
 .sidebar.collapsed {
     transform: translateX(calc(-1 * var(--sidebar-w)));
+}
+
+.sidebar-footer {
+    margin-top: auto;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 }
 
 .sidebar-logo {

@@ -88,7 +88,6 @@ public class CamelRouteMermaidParser {
         return String.join("\n", lines);
     }
 
-    @SuppressWarnings("unchecked")
     private static void parseYamlRoute(
             Map<String, Object> routeMap, List<String> lines, Map<String, Integer> counter) {
         String routeId = (String) routeMap.get("id");

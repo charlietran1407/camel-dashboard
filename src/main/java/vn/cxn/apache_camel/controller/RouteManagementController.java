@@ -6,9 +6,11 @@ import java.util.Optional;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import vn.cxn.apache_camel.model.dto.RouteInfo;
+import vn.cxn.apache_camel.model.dto.RouteMetrics;
 import vn.cxn.apache_camel.model.dto.RouteVersion;
 import vn.cxn.apache_camel.service.CamelRouteMermaidParser;
 import vn.cxn.apache_camel.service.RouteLifecycleService;
+import vn.cxn.apache_camel.service.RouteMetricsService;
 import vn.cxn.apache_camel.service.RouteQueryService;
 import vn.cxn.apache_camel.service.RouteVersionService;
 
@@ -19,14 +21,17 @@ public class RouteManagementController {
     private final RouteLifecycleService routeLifecycleService;
     private final RouteQueryService routeQueryService;
     private final RouteVersionService versionService;
+    private final RouteMetricsService routeMetricsService;
 
     public RouteManagementController(
             RouteLifecycleService routeLifecycleService,
             RouteQueryService routeQueryService,
-            RouteVersionService versionService) {
+            RouteVersionService versionService,
+            RouteMetricsService routeMetricsService) {
         this.routeLifecycleService = routeLifecycleService;
         this.routeQueryService = routeQueryService;
         this.versionService = versionService;
+        this.routeMetricsService = routeMetricsService;
     }
 
     /** GET /api/routes - list all routes with status */
@@ -249,5 +254,28 @@ public class RouteManagementController {
     @GetMapping("/rest-services")
     public ResponseEntity<List<Map<String, Object>>> getRestServices() {
         return ResponseEntity.ok(routeQueryService.getServicesWithDetails());
+    }
+
+    /** GET /api/routes/metrics - runtime metrics for all live routes */
+    @GetMapping("/metrics")
+    public ResponseEntity<List<RouteMetrics>> getAllRouteMetrics() {
+        return ResponseEntity.ok(routeMetricsService.getAllRouteMetrics());
+    }
+
+    /** GET /api/routes/{routeId}/metrics - runtime metrics for a single route */
+    @GetMapping("/{routeId}/metrics")
+    public ResponseEntity<?> getRouteMetrics(@PathVariable String routeId) {
+        return routeMetricsService
+                .getMetricsForRoute(routeId)
+                .map(ResponseEntity::ok)
+                .<ResponseEntity<?>>map(r -> r)
+                .orElseGet(
+                        () ->
+                                ResponseEntity.status(404)
+                                        .body(
+                                                Map.of(
+                                                        "error",
+                                                        "Route not found or metrics unavailable: "
+                                                                + routeId)));
     }
 }

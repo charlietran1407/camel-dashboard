@@ -57,6 +57,8 @@ export const dashboardApi = {
     delete: routeId => apiFetch(`/api/routes/${encodeURIComponent(routeId)}`, { method: 'DELETE' }),
     source: routeId => apiFetch(`/api/routes/${encodeURIComponent(routeId)}/source`),
     mermaid: routeId => apiFetch(`/api/routes/${encodeURIComponent(routeId)}/mermaid`),
+    metrics: () => apiFetch('/api/routes/metrics'),
+    metricsById: routeId => apiFetch(`/api/routes/${encodeURIComponent(routeId)}/metrics`),
     deploy: versionId => apiFetch(`/api/routes/deploy/${encodeURIComponent(versionId)}`, { method: 'POST' })
   },
   versions: {

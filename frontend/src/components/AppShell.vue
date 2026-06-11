@@ -138,6 +138,10 @@ const toggleMenuIcon = computed(() => {
         <span>{{ t(`nav.${page.id}`) }}</span>
       </button>
     </nav>
+    <div class="sidebar-footer">
+      <span>Dashboard</span>
+      <span>v{{ healthDetail?.version || '1.0.0-dev' }}</span>
+    </div>
   </aside>
 
   <div 

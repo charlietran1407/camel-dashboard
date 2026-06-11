@@ -5,10 +5,8 @@ import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.stereotype.Repository;
 import vn.cxn.apache_camel.model.entity.RouteEntity;
 
-@Repository
 public interface RouteRepository extends JpaRepository<RouteEntity, String> {
 
     @Override

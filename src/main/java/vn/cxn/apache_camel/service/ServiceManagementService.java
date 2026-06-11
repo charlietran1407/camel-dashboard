@@ -11,6 +11,7 @@ import vn.cxn.apache_camel.model.dto.ServiceDTO;
 import vn.cxn.apache_camel.model.entity.ServiceEntity;
 import vn.cxn.apache_camel.repository.ServiceRepository;
 import vn.cxn.apache_camel.service.mapper.ServiceMapper;
+import vn.cxn.apache_camel.util.CamelRouteUtil;
 
 @org.springframework.stereotype.Service
 @Transactional(readOnly = true)
@@ -227,7 +228,7 @@ public class ServiceManagementService {
         }
 
         // Safety net: scan CamelContext for any route matching the prefix
-        String managedPrefix = "svc_" + id.replaceAll("[^A-Za-z0-9_-]", "_") + "__";
+        String managedPrefix = CamelRouteUtil.getServicePrefix(id);
         try {
             camelRouteService
                     .listRoutes()
@@ -326,7 +327,7 @@ public class ServiceManagementService {
         // prefix or by current serviceId
         if (allLiveRoutes != null && !allLiveRoutes.isEmpty()) {
             try {
-                String prefix = "svc_" + s.getId().replaceAll("[^A-Za-z0-9_-]", "_") + "__";
+                String prefix = CamelRouteUtil.getServicePrefix(s.getId());
                 allLiveRoutes.forEach(
                         r -> {
                             if (r.id() != null

@@ -88,5 +88,5 @@ EXPOSE 8080
 #   -Dspring.profiles.active=prod → activates prod Spring profile
 ENTRYPOINT ["java", \
     "-Dspring.profiles.active=prod", \
-    "-cp", "/app/extracted/BOOT-INF/classes:/app/extracted/BOOT-INF/lib/*:/app/libs/*", \
+    "-cp", "/app/extracted/BOOT-INF/classes:/app/extracted:/app/extracted/BOOT-INF/lib/*:/app/libs/*", \
     "vn.cxn.apache_camel.ApacheCamelApplication"]

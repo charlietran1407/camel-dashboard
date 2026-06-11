@@ -6,6 +6,12 @@ import org.apache.camel.model.rest.VerbDefinition;
 
 public final class CamelRouteUtil {
 
+    /**
+     * Prefix used to namespace managed route IDs by their service. Full pattern:
+     * svc_&lt;serviceId&gt;__
+     */
+    public static final String SERVICE_ROUTE_PREFIX = "svc_";
+
     private CamelRouteUtil() {
         // Prevent instantiation
     }
@@ -41,7 +47,7 @@ public final class CamelRouteUtil {
         if (serviceId == null || serviceId.isBlank()) {
             return null;
         }
-        return "svc_" + serviceId.replaceAll("[^A-Za-z0-9_-]", "_") + "__";
+        return SERVICE_ROUTE_PREFIX + serviceId.replaceAll("[^A-Za-z0-9_-]", "_") + "__";
     }
 
     /**
@@ -87,8 +93,7 @@ public final class CamelRouteUtil {
         // Fallback check on toUri
         if (verb.getTo() != null && verb.getTo().getUri() != null) {
             var toUri = verb.getTo().getUri();
-            if (serviceId != null
-                    && toUri.contains("svc_" + serviceId.replaceAll("[^A-Za-z0-9_-]", "_"))) {
+            if (serviceId != null && toUri.contains(getServicePrefix(serviceId))) {
                 return true;
             }
             if (allRouteIds != null) {

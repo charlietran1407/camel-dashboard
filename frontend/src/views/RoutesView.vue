@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref, watch, nextTick } from 'vue';
+import { computed, onMounted, onUnmounted, ref, watch, nextTick } from 'vue';
 import StatusBadge from '../components/StatusBadge.vue';
 import { fmtDate, routeDisplayId } from '../composables/useFormatters.js';
 import { useI18n } from '../composables/useI18n.js';
@@ -148,11 +148,46 @@ const filteredServices = computed(() => {
   }).filter(Boolean);
 });
 
+const routeMetrics = ref({});
+const metricsInterval = ref(null);
+
+async function fetchMetrics() {
+  try {
+    const data = await dashboardApi.routes.metrics();
+    const metricsMap = {};
+    if (Array.isArray(data)) {
+      data.forEach(m => {
+        metricsMap[m.routeId] = m;
+      });
+    }
+    routeMetrics.value = metricsMap;
+  } catch (error) {
+    console.warn("Failed to fetch route metrics:", error);
+  }
+}
+
+function formatCount(val) {
+  if (val === undefined || val === null) return '0';
+  if (val >= 1000000) {
+    return (val / 1000000).toFixed(1) + 'M';
+  }
+  if (val >= 1000) {
+    return (val / 1000).toFixed(1) + 'k';
+  }
+  return val.toString();
+}
+
+function formatFullNumber(val) {
+  if (val === undefined || val === null) return '0';
+  return Number(val).toLocaleString();
+}
+
 async function load() {
   loading.value = true;
   try {
     const data = await dashboardApi.routes.restServices();
     servicesWithDetails.value = data;
+    await fetchMetrics();
   } catch (error) {
     toast(t('toast.load_routes_err') + error.message, 'error');
   } finally {
@@ -351,7 +386,17 @@ watch([currentTab, mermaidCode], ([newTab, code]) => {
   }
 });
 
-onMounted(load);
+onMounted(() => {
+  load();
+  metricsInterval.value = setInterval(fetchMetrics, 5000);
+});
+
+onUnmounted(() => {
+  if (metricsInterval.value) {
+    clearInterval(metricsInterval.value);
+  }
+});
+
 watch(() => props.refreshKey, load);
 
 watch([currentTab, sourceContent], ([newTab, content]) => {
@@ -482,22 +527,30 @@ watch([currentTab, sourceContent], ([newTab, content]) => {
                     </div>
 
                     <!-- REST Controls (Only visible if all verbs share the same Route ID, i.e., inlined) -->
-                    <div v-if="isSingleRouteIdRest(rest)" class="btn-group flex gap-2" @click.stop>
-                      <Button variant="outlined" v-if="rest.status !== 'Started' && rest.status !== 'Suspended'"
-                        icon="pi pi-play" severity="success" size="small" class="btn-xs btn-success" :label="t('common.start')"
-                        @click="routeAction({ id: rest.routeId, originalId: rest.path }, 'start')" />
-                      <Button variant="outlined" v-if="rest.status === 'Started'" icon="pi pi-stop" severity="warn" size="small"
-                        class="btn-xs btn-warning" :label="t('common.stop')" @click="routeAction({ id: rest.routeId, originalId: rest.path }, 'stop')" />
-                      <Button variant="outlined" v-if="rest.status === 'Started'" icon="pi pi-pause" severity="info" size="small"
-                        class="btn-xs btn-info" :label="t('common.suspend')" @click="routeAction({ id: rest.routeId, originalId: rest.path }, 'suspend')" />
-                      <Button variant="outlined" v-if="rest.status === 'Suspended'" icon="pi pi-play" severity="info" size="small"
-                        class="btn-xs btn-info" :label="t('common.resume')" @click="routeAction({ id: rest.routeId, originalId: rest.path }, 'resume')" />
-                      <Button variant="outlined" icon="pi pi-eye" severity="secondary" size="small" class="btn-xs btn-ghost"
-                        :title="t('routes.tooltip.preview')" @click="viewSource({ id: rest.routeId, restParams: collectRestParams(rest) })" />
-                      <!--
-                      <Button variant="outlined" icon="pi pi-trash" severity="danger" size="small" class="btn-xs btn-danger"
-                        @click="routeAction({ id: rest.routeId, originalId: rest.path }, 'delete')" />
-                      -->
+                    <div v-if="isSingleRouteIdRest(rest)" class="flex items-center gap-3" @click.stop>
+                      <div v-if="routeMetrics[rest.routeId]" class="rest-metrics-summary flex items-center gap-3 text-xs font-semibold bg-surface-50 dark:bg-surface-800/50 border border-surface-200 dark:border-surface-700 rounded-lg px-3 py-1">
+                        <span class="text-surface-500" title="Total Exchanges"><i class="pi pi-sync text-[10px]"></i> {{ formatCount(routeMetrics[rest.routeId].exchangesTotal) }}</span>
+                        <span v-if="routeMetrics[rest.routeId].exchangesFailed > 0" class="text-red-500" title="Failed Exchanges"><i class="pi pi-times-circle text-[10px]"></i> {{ formatCount(routeMetrics[rest.routeId].exchangesFailed) }}</span>
+                        <span class="text-surface-600 dark:text-surface-300" title="Average processing time"><i class="pi pi-clock text-[10px]"></i> {{ routeMetrics[rest.routeId].meanProcessingTimeMs }}ms</span>
+                        <span class="text-primary" title="Throughput"><i class="pi pi-bolt text-[10px]"></i> {{ parseFloat(routeMetrics[rest.routeId].throughput || 0).toFixed(1) }}/s</span>
+                        <span v-if="routeMetrics[rest.routeId].exchangesInflight > 0" class="text-amber-500 flex items-center gap-1 animate-pulse" title="Inflight Exchanges">
+                          <i class="pi pi-spin pi-spinner text-[10px]"></i> {{ routeMetrics[rest.routeId].exchangesInflight }}
+                        </span>
+                      </div>
+                      
+                      <div class="btn-group flex gap-2">
+                        <Button variant="outlined" v-if="rest.status !== 'Started' && rest.status !== 'Suspended'"
+                          icon="pi pi-play" severity="success" size="small" class="btn-xs btn-success" :label="t('common.start')"
+                          @click="routeAction({ id: rest.routeId, originalId: rest.path }, 'start')" />
+                        <Button variant="outlined" v-if="rest.status === 'Started'" icon="pi pi-stop" severity="warn" size="small"
+                          class="btn-xs btn-warning" :label="t('common.stop')" @click="routeAction({ id: rest.routeId, originalId: rest.path }, 'stop')" />
+                        <Button variant="outlined" v-if="rest.status === 'Started'" icon="pi pi-pause" severity="info" size="small"
+                          class="btn-xs btn-info" :label="t('common.suspend')" @click="routeAction({ id: rest.routeId, originalId: rest.path }, 'suspend')" />
+                        <Button variant="outlined" v-if="rest.status === 'Suspended'" icon="pi pi-play" severity="info" size="small"
+                          class="btn-xs btn-info" :label="t('common.resume')" @click="routeAction({ id: rest.routeId, originalId: rest.path }, 'resume')" />
+                        <Button variant="outlined" icon="pi pi-eye" severity="secondary" size="small" class="btn-xs btn-ghost"
+                          :title="t('routes.tooltip.preview')" @click="viewSource({ id: rest.routeId, restParams: collectRestParams(rest) })" />
+                      </div>
                     </div>
                   </div>
 
@@ -527,9 +580,16 @@ watch([currentTab, sourceContent], ([newTab, content]) => {
                             <StatusBadge v-else :status="verb.status" class="text-xs" />
                           </div>
                           
-                          <div class="flex items-center gap-2">
+                          <div class="flex items-center gap-2" @click.stop>
                             <span v-if="verb.id" class="text-xs font-mono text-surface-400 dark:text-surface-500 mr-2">ID: {{ verb.id }}</span>
                             
+                            <div v-if="routeMetrics[verb.routeId]" class="verb-metrics flex items-center gap-2 mr-2 text-[11px] bg-surface-50 dark:bg-surface-800 border border-surface-200 dark:border-surface-700 rounded px-2 py-0.5 font-semibold">
+                              <span class="text-surface-500" title="Total"><i class="pi pi-sync text-[9px]"></i> {{ formatCount(routeMetrics[verb.routeId].exchangesTotal) }}</span>
+                              <span v-if="routeMetrics[verb.routeId].exchangesFailed > 0" class="text-red-500" title="Failed"><i class="pi pi-times-circle text-[9px]"></i> {{ formatCount(routeMetrics[verb.routeId].exchangesFailed) }}</span>
+                              <span class="text-surface-600 dark:text-surface-300" title="Avg Time"><i class="pi pi-clock text-[9px]"></i> {{ routeMetrics[verb.routeId].meanProcessingTimeMs }}ms</span>
+                              <span class="text-primary" title="Throughput"><i class="pi pi-bolt text-[9px]"></i> {{ parseFloat(routeMetrics[verb.routeId].throughput || 0).toFixed(1) }}/s</span>
+                            </div>
+
                             <!-- Verb-level controls -->
                             <div class="btn-group flex gap-2">
                               <Button variant="outlined" v-if="verb.status !== 'Started' && verb.status !== 'Suspended'"
@@ -642,6 +702,46 @@ watch([currentTab, sourceContent], ([newTab, content]) => {
                   </template>
                 </Column>
 
+                <Column :header="t('routes.table.metrics') || 'Metrics'">
+                  <template #body="slotProps">
+                    <div v-if="routeMetrics[slotProps.data.id]" class="route-metrics-cell flex items-center gap-4 text-xs">
+                      <div class="metric-group flex flex-col" :title="'Exchanges: Total / Failed'">
+                        <span class="metric-label text-[10px] uppercase font-bold text-surface-400 dark:text-surface-500">Exchanges</span>
+                        <div class="flex items-center gap-1 font-semibold">
+                          <span class="text-surface-700 dark:text-surface-300 font-mono">{{ formatCount(routeMetrics[slotProps.data.id].exchangesTotal) }}</span>
+                          <span v-if="routeMetrics[slotProps.data.id].exchangesFailed > 0" class="text-red-500 font-mono text-[11px] font-semibold bg-red-500/10 px-1 rounded">
+                            / {{ formatCount(routeMetrics[slotProps.data.id].exchangesFailed) }}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div class="metric-group flex flex-col" :title="'Average / Last processing time'">
+                        <span class="metric-label text-[10px] uppercase font-bold text-surface-400 dark:text-surface-500">Avg / Last</span>
+                        <div class="flex items-center gap-1 font-mono text-surface-600 dark:text-surface-400 font-semibold">
+                          <span>{{ routeMetrics[slotProps.data.id].meanProcessingTimeMs }}ms</span>
+                          <span class="text-[10px] text-surface-400">/ {{ routeMetrics[slotProps.data.id].lastProcessingTimeMs }}ms</span>
+                        </div>
+                      </div>
+
+                      <div class="metric-group flex flex-col" :title="'Throughput (TPS)'">
+                        <span class="metric-label text-[10px] uppercase font-bold text-surface-400 dark:text-surface-500">TPS</span>
+                        <span class="font-mono text-primary font-semibold">
+                          {{ parseFloat(routeMetrics[slotProps.data.id].throughput || 0).toFixed(2) }}
+                        </span>
+                      </div>
+
+                      <div v-if="routeMetrics[slotProps.data.id].exchangesInflight > 0" class="metric-group flex flex-col items-center">
+                        <span class="metric-label text-[10px] uppercase font-bold text-surface-400 dark:text-surface-500">Active</span>
+                        <span class="font-mono font-bold bg-amber-500/20 text-amber-500 px-2 py-0.5 rounded-full flex items-center gap-1 animate-pulse">
+                          <i class="pi pi-spin pi-spinner text-[10px]"></i>
+                          {{ routeMetrics[slotProps.data.id].exchangesInflight }}
+                        </span>
+                      </div>
+                    </div>
+                    <span v-else class="text-xs text-surface-400 italic font-mono">-</span>
+                  </template>
+                </Column>
+
                 <Column field="deployedAt" :header="t('routes.table.deployed_at')">
                   <template #body="slotProps">
                     <span class="muted deploy-time-cell text-xs">{{ fmtDate(slotProps.data.deployedAt) }}</span>
@@ -688,6 +788,7 @@ watch([currentTab, sourceContent], ([newTab, content]) => {
           <Tab v-if="modalRoute?.restParams && modalRoute.restParams.length > 0" value="api">
             {{ t('modal.tab_api') || 'REST API' }}
           </Tab>
+          <Tab value="metrics">{{ t('modal.tab_metrics') || 'Runtime Metrics' }}</Tab>
         </TabList>
         <TabPanels>
           <TabPanel value="source">
@@ -746,6 +847,93 @@ watch([currentTab, sourceContent], ([newTab, content]) => {
                 </template>
               </Column>
             </DataTable>
+          </TabPanel>
+          <TabPanel value="metrics">
+            <div v-if="routeMetrics[modalRoute?.id]" class="metrics-details-panel p-4 flex flex-col gap-6">
+              <!-- Grid of main KPI cards -->
+              <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div class="metric-card p-3 border rounded-xl bg-surface-50 dark:bg-surface-800/30 flex flex-col overflow-hidden">
+                  <span class="text-xs text-surface-400 dark:text-surface-500 font-bold uppercase tracking-wider">Total Exchanges</span>
+                  <span class="text-2xl font-bold font-mono text-surface-800 dark:text-surface-100 mt-1 break-all">
+                    {{ formatFullNumber(routeMetrics[modalRoute.id].exchangesTotal) }}
+                  </span>
+                </div>
+                <div class="metric-card p-3 border rounded-xl bg-surface-50 dark:bg-surface-800/30 flex flex-col overflow-hidden">
+                  <span class="text-xs text-surface-400 dark:text-surface-500 font-bold uppercase tracking-wider">Completed</span>
+                  <span class="text-2xl font-bold font-mono text-green-500 mt-1 break-all">
+                    {{ formatFullNumber(routeMetrics[modalRoute.id].exchangesSucceeded) }}
+                  </span>
+                </div>
+                <div class="metric-card p-3 border rounded-xl bg-surface-50 dark:bg-surface-800/30 flex flex-col overflow-hidden">
+                  <span class="text-xs text-surface-400 dark:text-surface-500 font-bold uppercase tracking-wider">Failed</span>
+                  <span class="text-2xl font-bold font-mono text-red-500 mt-1 break-all">
+                    {{ formatFullNumber(routeMetrics[modalRoute.id].exchangesFailed) }}
+                  </span>
+                </div>
+                <div class="metric-card p-3 border rounded-xl bg-surface-50 dark:bg-surface-800/30 flex flex-col overflow-hidden">
+                  <span class="text-xs text-surface-400 dark:text-surface-500 font-bold uppercase tracking-wider">Inflight</span>
+                  <span class="text-2xl font-bold font-mono text-amber-500 mt-1 break-all" :class="{ 'animate-pulse': routeMetrics[modalRoute.id].exchangesInflight > 0 }">
+                    {{ formatFullNumber(routeMetrics[modalRoute.id].exchangesInflight) }}
+                  </span>
+                </div>
+              </div>
+
+              <!-- Processing Time stats & Throughput/Load -->
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Processing Time Stats -->
+                <div class="border rounded-xl p-4 bg-surface-card flex flex-col gap-3">
+                  <h4 class="text-sm font-bold text-surface-800 dark:text-surface-200 border-b pb-2 flex items-center gap-2">
+                    <i class="pi pi-clock text-primary"></i> Processing Times (ms)
+                  </h4>
+                  <div class="flex flex-col gap-2 font-mono text-sm">
+                    <div class="flex justify-between">
+                      <span class="text-surface-500">Mean Processing Time:</span>
+                      <span class="font-bold">{{ routeMetrics[modalRoute.id].meanProcessingTimeMs }} ms</span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span class="text-surface-500">Min Processing Time:</span>
+                      <span class="font-bold">{{ routeMetrics[modalRoute.id].minProcessingTimeMs }} ms</span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span class="text-surface-500">Max Processing Time:</span>
+                      <span class="font-bold">{{ routeMetrics[modalRoute.id].maxProcessingTimeMs }} ms</span>
+                    </div>
+                    <div class="flex justify-between">
+                      <span class="text-surface-500">Last Processing Time:</span>
+                      <span class="font-bold">{{ routeMetrics[modalRoute.id].lastProcessingTimeMs }} ms</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Load & Throughput -->
+                <div class="border rounded-xl p-4 bg-surface-card flex flex-col gap-3">
+                  <h4 class="text-sm font-bold text-surface-800 dark:text-surface-200 border-b pb-2 flex items-center gap-2">
+                    <i class="pi pi-bolt text-primary"></i> Throughput & Load
+                  </h4>
+                  <div class="flex flex-col gap-2 font-mono text-sm">
+                    <div class="flex justify-between">
+                      <span class="text-surface-500">Current Throughput:</span>
+                      <span class="font-bold text-primary">{{ parseFloat(routeMetrics[modalRoute.id].throughput || 0).toFixed(2) }} TPS</span>
+                    </div>
+                    <div class="flex justify-between" title="Exchanges per minute over 1-minute window">
+                      <span class="text-surface-500">Load (1 min):</span>
+                      <span class="font-bold">{{ routeMetrics[modalRoute.id].load01 }}</span>
+                    </div>
+                    <div class="flex justify-between" title="Exchanges per minute over 5-minute window">
+                      <span class="text-surface-500">Load (5 min):</span>
+                      <span class="font-bold">{{ routeMetrics[modalRoute.id].load05 }}</span>
+                    </div>
+                    <div class="flex justify-between" title="Exchanges per minute over 15-minute window">
+                      <span class="text-surface-500">Load (15 min):</span>
+                      <span class="font-bold">{{ routeMetrics[modalRoute.id].load15 }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div v-else class="text-center p-8 text-surface-500 italic">
+              {{ t('modal.metrics_unavailable') }}
+            </div>
           </TabPanel>
         </TabPanels>
       </Tabs>

@@ -29,6 +29,7 @@ import vn.cxn.apache_camel.service.RouteVersionService;
 import vn.cxn.apache_camel.service.component.LoaderPathDependencyService;
 import vn.cxn.apache_camel.service.component.MissingComponentDownloadResult;
 import vn.cxn.apache_camel.service.route_helper.*;
+import vn.cxn.apache_camel.util.CamelRouteUtil;
 import vn.cxn.apache_camel.util.CamelYamlParser;
 import vn.cxn.apache_camel.validation.MissingComponentsDownloadedException;
 import vn.cxn.apache_camel.validation.PreDeployValidationException;
@@ -163,7 +164,7 @@ public class RouteDeploymentFacadeImpl implements RouteDeploymentFacade {
                 });
 
         if (serviceId != null && !serviceId.isBlank()) {
-            String managedPrefix = "svc_" + serviceId.replaceAll("[^A-Za-z0-9_-]", "_") + "__";
+            String managedPrefix = CamelRouteUtil.getServicePrefix(serviceId);
             camelContext.getRoutes().stream()
                     .map(Route::getId)
                     .filter(id -> id != null && id.startsWith(managedPrefix))
@@ -217,7 +218,7 @@ public class RouteDeploymentFacadeImpl implements RouteDeploymentFacade {
 
     private void clearPersistedStates(String serviceId) {
         if (serviceId != null && !serviceId.isBlank()) {
-            String managedPrefix = "svc_" + serviceId.replaceAll("[^A-Za-z0-9_-]", "_") + "__";
+            String managedPrefix = CamelRouteUtil.getServicePrefix(serviceId);
             routeStateService.removeStatesWithPrefix(managedPrefix);
             log.info("Cleared persisted route states for prefix '{}'", managedPrefix);
         }

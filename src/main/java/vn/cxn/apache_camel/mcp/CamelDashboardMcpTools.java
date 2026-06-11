@@ -17,6 +17,7 @@ import vn.cxn.apache_camel.service.RouteQueryService;
 import vn.cxn.apache_camel.service.RouteValidationService;
 import vn.cxn.apache_camel.service.RouteVersionService;
 import vn.cxn.apache_camel.service.ServiceManagementService;
+import vn.cxn.apache_camel.validation.MissingComponentsDownloadedException;
 import vn.cxn.apache_camel.validation.RouteValidationResult;
 
 @Component
@@ -142,11 +143,28 @@ public class CamelDashboardMcpTools {
             @ToolParam(description = "Uploaded route version ID.", required = true)
                     String versionId)
             throws Exception {
-        String routeId = routeLifecycleService.deployFromVersion(versionId);
-        return Map.of(
-                "versionId", versionId,
-                "routeId", routeId,
-                "message", "Route deployed");
+        try {
+            String routeId = routeLifecycleService.deployFromVersion(versionId);
+            return Map.of(
+                    "versionId", versionId,
+                    "routeId", routeId,
+                    "message", "Route deployed");
+        } catch (MissingComponentsDownloadedException e) {
+            return Map.of(
+                    "versionId",
+                    versionId,
+                    "status",
+                    "RESTART_REQUIRED",
+                    "downloadedArtifacts",
+                    e.getDownloadedArtifacts(),
+                    "message",
+                    e.getMessage(),
+                    "action",
+                    "New Camel component JARs were downloaded. Restart the application,"
+                            + " then re-deploy version "
+                            + versionId
+                            + ".");
+        }
     }
 
     @Tool(name = "routes_start", description = "Start a deployed Camel route by route ID.")
@@ -173,17 +191,34 @@ public class CamelDashboardMcpTools {
             @ToolParam(description = "Uploaded route version ID.", required = true)
                     String versionId)
             throws Exception {
-        String routeId = routeLifecycleService.deployFromVersion(versionId);
-        routeLifecycleService.startRoute(routeId);
-        return Map.of(
-                "versionId",
-                versionId,
-                "routeId",
-                routeId,
-                "status",
-                routeQueryService.getRouteStatus(routeId),
-                "message",
-                "Route deployed and started");
+        try {
+            String routeId = routeLifecycleService.deployFromVersion(versionId);
+            routeLifecycleService.startRoute(routeId);
+            return Map.of(
+                    "versionId",
+                    versionId,
+                    "routeId",
+                    routeId,
+                    "status",
+                    routeQueryService.getRouteStatus(routeId),
+                    "message",
+                    "Route deployed and started");
+        } catch (MissingComponentsDownloadedException e) {
+            return Map.of(
+                    "versionId",
+                    versionId,
+                    "status",
+                    "RESTART_REQUIRED",
+                    "downloadedArtifacts",
+                    e.getDownloadedArtifacts(),
+                    "message",
+                    e.getMessage(),
+                    "action",
+                    "New Camel component JARs were downloaded. Restart the application,"
+                            + " then re-deploy version "
+                            + versionId
+                            + ".");
+        }
     }
 
     @Tool(name = "routes_get_status", description = "Get the runtime status of a Camel route.")

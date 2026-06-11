@@ -30,6 +30,7 @@ import vn.cxn.apache_camel.repository.RouteVersionRepository;
 import vn.cxn.apache_camel.service.mapper.ServiceMapper;
 import vn.cxn.apache_camel.service.route_deployment.RouteDeploymentFacade;
 import vn.cxn.apache_camel.service.route_helper.*;
+import vn.cxn.apache_camel.util.CamelRouteUtil;
 import vn.cxn.apache_camel.util.CamelYamlParser;
 
 @Service
@@ -146,10 +147,12 @@ public class CamelRouteService implements RouteLifecycleService, RouteQueryServi
                 .forEach(list -> list.sort(Comparator.comparingInt(RouteVersion::getVersion)));
 
         // Pre-fetch total versions count by service ID
-        Map<String, Integer> totalVersionsByServiceId = new HashMap<>();
-        allVersions.stream()
-                .filter(v -> v.getServiceId() != null)
-                .forEach(v -> totalVersionsByServiceId.merge(v.getServiceId(), 1, Integer::sum));
+        Map<String, Integer> totalVersionsByServiceId =
+                allVersions.stream()
+                        .filter(v -> v.getServiceId() != null)
+                        .collect(
+                                Collectors.groupingBy(
+                                        RouteVersion::getServiceId, Collectors.summingInt(v -> 1)));
 
         return camelContext.getRoutes().stream()
                 .map(
@@ -319,7 +322,7 @@ public class CamelRouteService implements RouteLifecycleService, RouteQueryServi
 
             for (var service : allServices) {
                 String serviceId = service.getId();
-                String prefix = "svc_" + serviceId.replaceAll("[^A-Za-z0-9_-]", "_") + "__";
+                String prefix = CamelRouteUtil.getServicePrefix(serviceId);
 
                 var serviceRoutes = filterRoutesForService(service, prefix, allLiveRoutes);
                 var matchedRestRouteIds = new HashSet<String>();

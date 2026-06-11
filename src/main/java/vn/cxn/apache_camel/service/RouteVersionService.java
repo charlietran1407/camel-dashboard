@@ -24,6 +24,7 @@ import vn.cxn.apache_camel.repository.RouteVersionRepository;
 import vn.cxn.apache_camel.repository.ServiceRepository;
 import vn.cxn.apache_camel.service.mapper.RouteVersionMapper;
 import vn.cxn.apache_camel.service.route_document.RouteDocumentStrategy;
+import vn.cxn.apache_camel.util.CamelRouteUtil;
 
 @Service
 @Transactional(readOnly = true)
@@ -543,7 +544,7 @@ public class RouteVersionService {
         String serviceId = version.getServiceId();
         String prefix =
                 (serviceId != null && !serviceId.isBlank())
-                        ? "svc_" + serviceId.replaceAll("[^A-Za-z0-9_-]", "_") + "__"
+                        ? CamelRouteUtil.getServicePrefix(serviceId)
                         : "";
         return rewriteRouteIds(version.getFileName(), content, getRouteIdMapping(version), prefix);
     }
@@ -650,7 +651,7 @@ public class RouteVersionService {
                 || originalRouteId.isBlank()) {
             return originalRouteId;
         }
-        String prefix = "svc_" + serviceId.replaceAll("[^A-Za-z0-9_-]", "_") + "__";
+        String prefix = CamelRouteUtil.getServicePrefix(serviceId);
         if (originalRouteId.startsWith(prefix)) {
             return originalRouteId;
         }

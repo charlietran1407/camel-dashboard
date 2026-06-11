@@ -13,7 +13,6 @@ class RouteIdManager {
 
     private static final Logger log = LoggerFactory.getLogger(RouteIdManager.class);
 
-    @SuppressWarnings("unchecked")
     public String ensureRouteIds(String content) {
         if (content == null || content.isBlank()) {
             return content;
