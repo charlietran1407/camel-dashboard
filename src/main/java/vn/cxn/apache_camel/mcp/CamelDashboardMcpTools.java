@@ -1,5 +1,7 @@
 package vn.cxn.apache_camel.mcp;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -7,6 +9,8 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Component;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.error.YAMLException;
@@ -22,6 +26,9 @@ import vn.cxn.apache_camel.validation.RouteValidationResult;
 
 @Component
 public class CamelDashboardMcpTools {
+
+    @Value("classpath:mcp-instructions.md")
+    private Resource instructionsResource;
 
     private static final int MAX_ROUTE_CONTENT_LENGTH = 1_000_000;
 
@@ -428,14 +435,14 @@ public class CamelDashboardMcpTools {
     @Tool(
             name = "routes_get_content",
             description =
-                    "Lấy nội dung mã nguồn YAML của một service. Có thể lấy theo phiên bản chỉ định"
-                            + " hoặc mặc định lấy phiên bản đang chạy active.")
+                    "Get YAML source code content of a service. Can be retrieved by specified"
+                            + " version or default active version.")
     public Map<String, Object> getRouteContent(
-            @ToolParam(description = "ID của dịch vụ (service).", required = true) String serviceId,
+            @ToolParam(description = "Service ID.", required = true) String serviceId,
             @ToolParam(
                             description =
-                                    "Số phiên bản (tùy chọn). Nếu để trống, hệ thống tự động trả về"
-                                            + " phiên bản đang active.",
+                                    "Version number (optional). If left blank, the system"
+                                            + " automatically returns the active version.",
                             required = false)
                     Integer version) {
         return routeVersionService
@@ -478,5 +485,25 @@ public class CamelDashboardMcpTools {
         } catch (YAMLException e) {
             throw new IllegalArgumentException("YAML syntax error: " + e.getMessage(), e);
         }
+    }
+
+    @Tool(
+            name = "routes_get_creation_rules",
+            description =
+                    "Retrieve the constraint rules, prerequisite structures, and validation rules"
+                        + " that must be followed when creating or uploading Apache Camel routes.")
+    public Map<String, Object> getRouteCreationRules() {
+        try {
+            if (instructionsResource != null && instructionsResource.exists()) {
+                String content =
+                        new String(
+                                instructionsResource.getInputStream().readAllBytes(),
+                                StandardCharsets.UTF_8);
+                return Map.of("instructions", content);
+            }
+        } catch (IOException e) {
+            // Fallback if resource reading fails
+        }
+        return Map.of("error", "Could not load instructions file from classpath");
     }
 }

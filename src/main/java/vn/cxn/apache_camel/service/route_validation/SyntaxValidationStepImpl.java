@@ -50,8 +50,7 @@ public class SyntaxValidationStepImpl implements RouteValidationStep {
 
         try {
             String cleanContent =
-                    vn.cxn.apache_camel.util.CamelYamlParser.stripAllBeansAndMetadata(
-                            context.content());
+                    vn.cxn.apache_camel.util.CamelYamlParser.stripMetadata(context.content());
             Resource resource = ResourceHelper.fromString(context.fileName(), cleanContent);
             PluginHelper.getRoutesLoader(isolatedContext).loadRoutes(resource);
             return true;

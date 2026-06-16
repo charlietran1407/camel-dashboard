@@ -44,4 +44,7 @@ public interface RouteVersionRepository extends JpaRepository<RouteVersionEntity
                 + " routeDescriptions, r.description as description, r.validateResult as"
                 + " validateResult FROM RouteVersionEntity r WHERE r.service.id = :serviceId")
     List<RouteVersionSummary> findSummaryByServiceId(@Param("serviceId") UUID serviceId);
+
+    @Query("SELECT r.service.id, COUNT(r) FROM RouteVersionEntity r GROUP BY r.service.id")
+    List<Object[]> countVersionsByServiceId();
 }

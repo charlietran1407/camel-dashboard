@@ -52,41 +52,36 @@ RUN chmod +x ./mvnw
 # -Pprod activates prod profile (provided-scope libs loaded from libs/)
 RUN --mount=type=cache,target=/root/.m2 ./mvnw package -Pprod -DskipTests -B -q
 
+# Create required runtime directories in builder stage (since runtime stage has no shell)
+RUN mkdir -p libs camel-routes-storage logs
+
 # =============================================================================
 # Stage 3: Runtime Image
 # =============================================================================
-FROM eclipse-temurin:25-jdk-alpine AS runtime
+FROM dhi.io/eclipse-temurin:21 AS runtime
 
 LABEL maintainer="TKC"
-LABEL description="Apache Camel Dashboard - Spring Boot + Vue 3 SPA"
-
-# Create non-root user for security
-RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+LABEL description="Apache Camel Dashboard"
 
 WORKDIR /app
 
-# Create required runtime directories and set ownership
-RUN mkdir -p libs camel-routes-storage logs \
-    && chown -R appuser:appgroup /app
+# Copy the directories and the fat JAR with the nonroot owner (65532) directly
+COPY --from=backend-builder --chown=65532:65532 /app/libs /app/libs
+COPY --from=backend-builder --chown=65532:65532 /app/camel-routes-storage /app/camel-routes-storage
+COPY --from=backend-builder --chown=65532:65532 /app/logs /app/logs
+COPY --from=backend-builder --chown=65532:65532 /app/target/*.jar app.jar
 
-# Copy the fat JAR from build stage with the correct owner directly
-COPY --from=backend-builder --chown=appuser:appgroup /app/target/*.jar app.jar
-
-# Unpack the jar to run in exploded mode (required for runtime compilation like jOOR to see classpath)
-RUN mkdir -p /app/extracted \
-    && cd /app/extracted \
-    && jar -xf ../app.jar \
-    && chown -R appuser:appgroup /app/extracted
-
-# Switch to non-root user
-USER appuser
+# Switch to the non-root user (already predefined as 65532 in base image)
+USER 65532
 
 # Expose Spring Boot default port
 EXPOSE 8080
 
 # JVM options:
 #   -Dspring.profiles.active=prod → activates prod Spring profile
+#   -Dloader.path=/app/libs → adds external libraries to classpath
 ENTRYPOINT ["java", \
     "-Dspring.profiles.active=prod", \
-    "-cp", "/app/extracted/BOOT-INF/classes:/app/extracted:/app/extracted/BOOT-INF/lib/*:/app/libs/*", \
-    "vn.cxn.apache_camel.ApacheCamelApplication"]
+    "-Dloader.path=/app/libs", \
+    "-jar", \
+    "app.jar"]

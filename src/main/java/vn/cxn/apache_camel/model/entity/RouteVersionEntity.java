@@ -120,11 +120,11 @@ public class RouteVersionEntity {
     }
 
     public String getYamlContent() {
-        return yamlContent;
+        return vn.cxn.apache_camel.util.CompressionUtil.decompress(yamlContent);
     }
 
     public void setYamlContent(String yamlContent) {
-        this.yamlContent = yamlContent;
+        this.yamlContent = vn.cxn.apache_camel.util.CompressionUtil.compress(yamlContent);
     }
 
     public Integer getVersion() {

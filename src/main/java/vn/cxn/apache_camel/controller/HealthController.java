@@ -4,7 +4,6 @@ import java.lang.management.ManagementFactory;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.apache.camel.CamelContext;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.info.BuildProperties;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -16,11 +15,11 @@ public class HealthController {
 
     private final CamelContext camelContext;
 
-    @Autowired(required = false)
-    private BuildProperties buildProperties;
+    private final BuildProperties buildProperties;
 
-    public HealthController(CamelContext camelContext) {
+    public HealthController(CamelContext camelContext, BuildProperties buildProperties) {
         this.camelContext = camelContext;
+        this.buildProperties = buildProperties;
     }
 
     /** GET /api/health Check status backend + Apache Camel context. */

@@ -3,6 +3,7 @@ package vn.cxn.apache_camel.service.route_helper;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import org.apache.camel.CamelContext;
 import org.apache.camel.model.ModelCamelContext;
@@ -16,6 +17,7 @@ import vn.cxn.apache_camel.model.dto.RouteVersion;
 import vn.cxn.apache_camel.model.entity.RouteEntity;
 import vn.cxn.apache_camel.repository.RouteRepository;
 import vn.cxn.apache_camel.service.RouteVersionService;
+import vn.cxn.apache_camel.util.CamelRouteUtil;
 import vn.cxn.apache_camel.util.CamelYamlParser;
 
 @Service
@@ -88,19 +90,10 @@ public class RestParamExtractorImpl implements RestParamExtractor {
         }
 
         if (activeVersionId != null) {
-            log.info(
-                    "Starting fallback REST parsing for route '{}' with version '{}'",
-                    id,
-                    activeVersionId);
             try {
                 String yamlContent = versionService.getContentFromDisk(activeVersionId);
                 if (yamlContent != null && !yamlContent.isBlank()) {
-                    log.info("Read YAML content from disk, size: {} chars", yamlContent.length());
                     return CamelYamlParser.parseRestParams(yamlContent, originalId, sourceUri);
-                } else {
-                    log.warn(
-                            "YAML content from disk was null or blank for version '{}'",
-                            activeVersionId);
                 }
             } catch (Exception e) {
                 log.warn(
@@ -109,12 +102,102 @@ public class RestParamExtractorImpl implements RestParamExtractor {
                         e.getMessage(),
                         e);
             }
-            log.info(
-                    "Completed fallback REST parsing for route '{}', extracted params count: {}",
-                    id,
-                    restParams.size());
         }
         return restParams;
+    }
+
+    @Override
+    public List<RestParamInfo> extractFallbackRestParams(
+            String id,
+            String originalId,
+            String sourceUri,
+            Map<String, RouteEntity> routesMap,
+            Map<String, RouteVersion> activeVersionsByServiceId,
+            Map<String, List<RestDefinition>> restDefinitionsCache) {
+
+        // Resolve the active version ID via O(1) map lookups — no DB queries.
+        String activeVersionId = null;
+        RouteEntity routeEntity = routesMap.get(id);
+        if (routeEntity != null && routeEntity.getVersion() != null) {
+            activeVersionId = routeEntity.getVersion().getId().toString();
+        } else {
+            String serviceId = null;
+            if (id != null && id.startsWith("svc_") && id.contains("__")) {
+                serviceId = id.substring(4, id.indexOf("__"));
+            }
+            if (serviceId != null) {
+                RouteVersion v = activeVersionsByServiceId.get(serviceId);
+                if (v != null && v.getRouteIds() != null && v.getRouteIds().contains(id)) {
+                    activeVersionId = v.getId();
+                }
+            }
+        }
+
+        if (activeVersionId != null) {
+            final String versionId = activeVersionId;
+            try {
+                // Cache parsed RestDefinitions per versionId to avoid running Camel's
+                // RouteLoader
+                // multiple times
+                List<RestDefinition> restDefs =
+                        restDefinitionsCache.computeIfAbsent(
+                                versionId,
+                                vid -> {
+                                    try {
+                                        String yamlContent = null;
+                                        if (routeEntity != null
+                                                && routeEntity.getVersion() != null) {
+                                            yamlContent = routeEntity.getVersion().getYamlContent();
+                                        } else {
+                                            String serviceId = null;
+                                            if (id != null
+                                                    && id.startsWith(
+                                                            CamelRouteUtil.SERVICE_ROUTE_PREFIX)
+                                                    && id.contains("__")) {
+                                                serviceId = id.substring(4, id.indexOf("__"));
+                                            }
+                                            if (serviceId != null) {
+                                                RouteVersion v =
+                                                        activeVersionsByServiceId.get(serviceId);
+                                                if (v != null
+                                                        && v.getRouteIds() != null
+                                                        && v.getRouteIds().contains(id)) {
+                                                    yamlContent = v.getContent();
+                                                }
+                                            }
+                                        }
+
+                                        if (yamlContent == null || yamlContent.isBlank()) {
+                                            yamlContent = versionService.getContentDb(vid);
+                                        }
+
+                                        if (yamlContent != null && !yamlContent.isBlank()) {
+                                            return CamelYamlParser.parseRestDefinitions(
+                                                    yamlContent);
+                                        }
+                                    } catch (Exception e) {
+                                        log.warn(
+                                                "Failed to load YAML from DB for version '{}':"
+                                                        + " {}",
+                                                vid,
+                                                e.getMessage());
+                                    }
+                                    return new ArrayList<>();
+                                });
+
+                if (restDefs != null && !restDefs.isEmpty()) {
+                    return CamelYamlParser.extractParamsFromDefinitions(
+                            restDefs, originalId, sourceUri);
+                }
+            } catch (Exception e) {
+                log.warn(
+                        "Failed to parse YAML fallback (bulk) for REST params of route '{}': {}",
+                        id,
+                        e.getMessage(),
+                        e);
+            }
+        }
+        return new ArrayList<>();
     }
 
     @Override

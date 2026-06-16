@@ -1,0 +1,78 @@
+- route:
+      id: gateway-lookup
+      from:
+          uri: platform-http
+          steps:
+              - setProperty:
+                    name: OriginalRemaining
+                    simple: ${header.CamelHttpPath.replaceFirst('^.*/gateway/[^/]+/?', '')}
+              - setProperty:
+                    name: LookupServiceId
+                    simple: ${header.CamelHttpPath.replaceFirst('^.*/gateway/([^/]+).*$', '$1')}
+              - setProperty:
+                    name: OriginalQuery
+                    simple: ${header.CamelHttpQuery}
+              - setProperty:
+                    name: OriginalMethod
+                    simple: ${header.CamelHttpMethod}
+              - removeHeaders: "*"
+              - toD:
+                    uri: http
+                    parameters:
+                        bridgeEndpoint: true
+                        httpUri: host.docker.internal:8500/v1/query/gateway-${exchangeProperty.LookupServiceId}/execute?limit=1
+                        httpMethod: GET
+                        throwExceptionOnFailure: false
+              - log:
+                    id: log-2562
+                    message: ${body}
+              - setHeader:
+                    name: MatchedServices
+                    jsonpath: $.Nodes
+              - choice:
+                    when:
+                        - simple: ${header.MatchedServices} != null && ${header.MatchedServices.size()} > 0
+                          steps:
+                              - setHeader:
+                                    name: ServiceAddress
+                                    jsonpath:
+                                        expression: $[0].Service.Address
+                                        source: header:MatchedServices
+                              - setHeader:
+                                    name: ServicePort
+                                    jsonpath:
+                                        expression: $[0].Service.Port
+                                        source: header:MatchedServices
+                              - setHeader:
+                                    name: ServiceBasePath
+                                    jsonpath:
+                                        expression: $[0].Service.Meta.basePath
+                                        source: header:MatchedServices
+                                        suppressExceptions: true
+                              - setHeader:
+                                    name: ServiceAddress
+                                    simple: "${header.ServiceAddress} ?: 'localhost'"
+                              - setHeader:
+                                    name: ServiceBasePath
+                                    simple: "${header.ServiceBasePath} ?: ''"
+                              - setHeader:
+                                    name: CamelHttpQuery
+                                    simple: ${exchangeProperty.OriginalQuery}
+                              - setHeader:
+                                    name: CamelHttpMethod
+                                    simple: ${exchangeProperty.OriginalMethod}
+                              - log: "Gateway routing to:
+                                    http://${header.ServiceAddress}:${header.ServicePort}${he\
+                                    ader.ServiceBasePath}/${exchangeProperty.OriginalRemainin\
+                                    g}"
+                              - toD: http://${header.ServiceAddress}:${header.ServicePort}${header.ServiceBasePath}/${exchangeProperty.OriginalRemaining}?bridgeEndpoint=true&throwExceptionOnFailure=false
+                    otherwise:
+                        steps:
+                            - setHeader:
+                                  name: CamelHttpResponseCode
+                                  constant: "404"
+                            - setBody:
+                                  constant: '{"error": "Service not found or offline"}'
+          parameters:
+              matchOnUriPrefix: true
+              path: /gateway

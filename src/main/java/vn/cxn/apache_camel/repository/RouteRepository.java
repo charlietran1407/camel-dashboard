@@ -9,6 +9,14 @@ import vn.cxn.apache_camel.model.entity.RouteEntity;
 
 public interface RouteRepository extends JpaRepository<RouteEntity, String> {
 
+    /**
+     * Eagerly fetches version + version.service in a single LEFT JOIN so that callers never trigger
+     * per-row lazy-load SELECT statements.
+     */
+    @Override
+    @EntityGraph(attributePaths = {"version", "version.service"})
+    List<RouteEntity> findAll();
+
     @Override
     @EntityGraph(attributePaths = {"version", "version.service"})
     Optional<RouteEntity> findById(String id);

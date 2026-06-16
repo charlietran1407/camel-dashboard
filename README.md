@@ -12,7 +12,7 @@ monitor clusters, and let your AI assistant do the heavy lifting via native MCP 
 [![Vue 3](https://img.shields.io/badge/Vue-3.x-4FC08D?style=flat-square&logo=vue.js)](https://vuejs.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?style=flat-square&logo=postgresql)](https://www.postgresql.org/)
 [![Redis](https://img.shields.io/badge/Redis-7-DC382D?style=flat-square&logo=redis)](https://redis.io/)
-[![License](https://img.shields.io/badge/License-MIT-purple?style=flat-square)](LICENSE)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=flat-square)](LICENSE)
 [![Status](https://img.shields.io/badge/status-active%20development-blue?style=flat-square)](https://github.com/charlietran1407/apache-camel-dashboard)
 
 · [**📸 Screenshots**](#-screenshots) · [**🚀 Quick Start**](#-quick-start) · [**🤖 MCP Setup**](#-mcp--vibe-coding)
@@ -334,7 +334,7 @@ Contributions are welcome! Please:
 ---
 
 ## 📝 License
-- The source code of this project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+- The source code of this project is licensed under the Apache License, Version 2.0 — see the [LICENSE](LICENSE) file for details.
 - PrimeVue, licensed under the MIT 
 - Apache Camel is developed by the Apache Software Foundation and licensed under the [Apache License, Version 2.0](https://www.apache.org/licenses/LICENSE-2.0).
 

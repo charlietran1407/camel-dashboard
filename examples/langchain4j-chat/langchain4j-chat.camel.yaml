@@ -1,0 +1,30 @@
+- rest:
+    id: rest-chat
+    path: /chat
+    post:
+      - id: post-prompt
+        path: /prompt
+        to:
+          uri: direct:chat-prompt
+- route:
+    id: chat-prompt-route
+    from:
+      uri: direct:chat-prompt
+      steps:
+        - convertBodyTo:
+            id: convert-body
+            type: java.lang.String
+        - to:
+            id: to-chat
+            uri: langchain4j-chat:gemini-chat
+            parameters:
+              chatModel: "#myChatModel"
+- beans:
+    - name: myChatModel
+      type: dev.langchain4j.model.googleai.GoogleAiGeminiChatModel
+      scriptLanguage: java
+      script: |
+        return dev.langchain4j.model.googleai.GoogleAiGeminiChatModel.builder()
+            .apiKey("{{GEMINI_API_KEY}}")
+            .modelName("{{GEMINI_MODEL_FLASH_LITE}}")
+            .build();

@@ -27,9 +27,9 @@ services:
       REDIS_PORT: ${REDIS_PORT}
       REDIS_PASSWORD: ${REDIS_PASSWORD}
     volumes:
-      - /libs:/app/libs
-      - /camel-routes-storage:/app/camel-routes-storage:delegated
-      - ./logs:/app/logs   
+      - libs-vol:/app/libs
+      - storage-vol:/app/camel-routes-storage
+      - logs-vol:/app/logs
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8080/actuator/health"]
@@ -37,3 +37,7 @@ services:
       timeout: 10s
       retries: 5
       start_period: 60s
+volumes:
+  libs-vol:
+  storage-vol:
+  logs-vol:

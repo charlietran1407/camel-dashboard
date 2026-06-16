@@ -27,6 +27,7 @@ import vn.cxn.apache_camel.model.enums.NodeState;
 import vn.cxn.apache_camel.model.enums.RouteState;
 import vn.cxn.apache_camel.repository.RouteRepository;
 import vn.cxn.apache_camel.repository.RouteVersionRepository;
+import vn.cxn.apache_camel.service.mapper.RouteVersionMapper;
 import vn.cxn.apache_camel.service.mapper.ServiceMapper;
 import vn.cxn.apache_camel.service.route_deployment.RouteDeploymentFacade;
 import vn.cxn.apache_camel.service.route_helper.*;
@@ -56,6 +57,7 @@ public class CamelRouteService implements RouteLifecycleService, RouteQueryServi
     private final RouteEndpointCleanupService routeEndpointCleanupService;
     private final AuditLogger auditLogger;
     private final ServiceMapper serviceMapper;
+    private final RouteVersionMapper routeVersionMapper;
 
     public CamelRouteService(
             CamelContext camelContext,
@@ -73,7 +75,8 @@ public class CamelRouteService implements RouteLifecycleService, RouteQueryServi
             RouteRestCleanupService routeRestCleanupService,
             RouteEndpointCleanupService routeEndpointCleanupService,
             AuditLogger auditLogger,
-            ServiceMapper serviceMapper) {
+            ServiceMapper serviceMapper,
+            RouteVersionMapper routeVersionMapper) {
         this.camelContext = camelContext;
         this.versionService = versionService;
         this.routeStateService = routeStateService;
@@ -90,6 +93,7 @@ public class CamelRouteService implements RouteLifecycleService, RouteQueryServi
         this.routeEndpointCleanupService = routeEndpointCleanupService;
         this.auditLogger = auditLogger;
         this.serviceMapper = serviceMapper;
+        this.routeVersionMapper = routeVersionMapper;
     }
 
     /**
@@ -111,17 +115,18 @@ public class CamelRouteService implements RouteLifecycleService, RouteQueryServi
     /** List all running routes with their status and version info. */
     public List<RouteInfo> listRoutes() {
         List<ClusterNodeEntity> onlineNodes = getOnlineNodes();
-        List<RouteRuntimeStateEntity> allRuntimeStates = clusterNodeService.getAllRouteStates();
-
         Map<String, Map<String, RouteRuntimeStateEntity>> statesByRouteAndNode =
-                allRuntimeStates.stream()
-                        .collect(
-                                Collectors.groupingBy(
-                                        RouteRuntimeStateEntity::getRouteId,
-                                        Collectors.toMap(
-                                                RouteRuntimeStateEntity::getInstanceId,
-                                                state -> state,
-                                                (s1, s2) -> s1)));
+                groupStatesByRouteAndNode(clusterNodeService.getAllRouteStates());
+        return listRoutes(onlineNodes, statesByRouteAndNode);
+    }
+
+    /**
+     * Internal overload that accepts pre-fetched node/state data so {@link
+     * #getServicesWithDetails()} can share a single fetch across both calls.
+     */
+    private List<RouteInfo> listRoutes(
+            List<ClusterNodeEntity> onlineNodes,
+            Map<String, Map<String, RouteRuntimeStateEntity>> statesByRouteAndNode) {
 
         // Pre-fetch all RouteEntity records
         Map<String, vn.cxn.apache_camel.model.entity.RouteEntity> routesMap =
@@ -132,39 +137,43 @@ public class CamelRouteService implements RouteLifecycleService, RouteQueryServi
                                         r -> r,
                                         (r1, r2) -> r1));
 
-        // Pre-fetch and group all versions by route ID
-        List<RouteVersion> allVersions = versionService.getAllVersions();
-        Map<String, List<RouteVersion>> versionsByRouteId = new HashMap<>();
-        for (RouteVersion v : allVersions) {
-            if (v.getRouteIds() != null) {
-                for (String rId : v.getRouteIds()) {
-                    versionsByRouteId.computeIfAbsent(rId, k -> new ArrayList<>()).add(v);
+        // Extract active versions of all services from pre-fetched routesMap
+        Map<String, RouteVersion> activeVersionsByServiceId = new HashMap<>();
+        for (vn.cxn.apache_camel.model.entity.RouteEntity re : routesMap.values()) {
+            if (re.getVersion() != null) {
+                RouteVersionEntity rve = re.getVersion();
+                if (rve.getService() != null) {
+                    String sId = rve.getService().getId().toString();
+                    if (!activeVersionsByServiceId.containsKey(sId)) {
+                        activeVersionsByServiceId.put(sId, routeVersionMapper.toModel(rve));
+                    }
                 }
             }
         }
-        versionsByRouteId
-                .values()
-                .forEach(list -> list.sort(Comparator.comparingInt(RouteVersion::getVersion)));
 
         // Pre-fetch total versions count by service ID
         Map<String, Integer> totalVersionsByServiceId =
-                allVersions.stream()
-                        .filter(v -> v.getServiceId() != null)
-                        .collect(
-                                Collectors.groupingBy(
-                                        RouteVersion::getServiceId, Collectors.summingInt(v -> 1)));
+                versionService.getVersionCountsByServiceId();
 
-        return camelContext.getRoutes().stream()
-                .map(
-                        route ->
-                                buildRouteInfo(
-                                        route,
-                                        onlineNodes,
-                                        statesByRouteAndNode,
-                                        routesMap,
-                                        versionsByRouteId,
-                                        totalVersionsByServiceId))
-                .collect(Collectors.toList());
+        // Per-request RestDefinitions cache: ensures each unique version is parsed from
+        // DB
+        // at most once per request, even when multiple routes share the same version.
+        Map<String, List<RestDefinition>> restDefinitionsCache = new HashMap<>();
+
+        List<RouteInfo> routes = new ArrayList<>();
+        for (Route route : camelContext.getRoutes()) {
+            routes.add(
+                    buildRouteInfo(
+                            route,
+                            onlineNodes,
+                            statesByRouteAndNode,
+                            routesMap,
+                            activeVersionsByServiceId,
+                            totalVersionsByServiceId,
+                            restDefinitionsCache));
+        }
+
+        return routes;
     }
 
     private RouteInfo buildRouteInfo(
@@ -172,11 +181,13 @@ public class CamelRouteService implements RouteLifecycleService, RouteQueryServi
             List<ClusterNodeEntity> onlineNodes,
             Map<String, Map<String, RouteRuntimeStateEntity>> statesByRouteAndNode,
             Map<String, vn.cxn.apache_camel.model.entity.RouteEntity> routesMap,
-            Map<String, List<RouteVersion>> versionsByRouteId,
-            Map<String, Integer> totalVersionsByServiceId) {
+            Map<String, RouteVersion> activeVersionsByServiceId,
+            Map<String, Integer> totalVersionsByServiceId,
+            Map<String, List<RestDefinition>> restDefinitionsCache) {
         String id = route.getId();
         String sourceUri = route.getEndpoint() != null ? route.getEndpoint().getEndpointUri() : "";
         String defaultDescription = route.getDescription();
+
         String status = getRouteStatus(id);
 
         // 1. Extract metadata from DB / disk fallback
@@ -185,17 +196,27 @@ public class CamelRouteService implements RouteLifecycleService, RouteQueryServi
                         id,
                         defaultDescription,
                         routesMap,
-                        versionsByRouteId,
+                        activeVersionsByServiceId,
                         totalVersionsByServiceId);
 
         // 2. Extract REST params dynamically
         List<RestParamInfo> restParams =
                 restParamExtractor.extractRestParams(id, meta.originalId(), sourceUri);
 
-        // 3. Fallback to parse REST params from YAML on disk if empty
+        // 3. Fallback to parse REST params from YAML on disk if empty.
+        // Use the fast overload that resolves versionId via pre-fetched maps (no
+        // per-route DB
+        // queries) and the shared restDefinitionsCache (no repeated DB reads or YAML
+        // parses).
         if (restParams.isEmpty()) {
             restParams =
-                    restParamExtractor.extractFallbackRestParams(id, meta.originalId(), sourceUri);
+                    restParamExtractor.extractFallbackRestParams(
+                            id,
+                            meta.originalId(),
+                            sourceUri,
+                            routesMap,
+                            activeVersionsByServiceId,
+                            restDefinitionsCache);
         }
 
         // 4. Get node states for the route
@@ -315,10 +336,26 @@ public class CamelRouteService implements RouteLifecycleService, RouteQueryServi
     public List<Map<String, Object>> getServicesWithDetails() {
         List<Map<String, Object>> result = new ArrayList<>();
         try {
+            // Fetch expensive shared data exactly once and reuse across all downstream
+            // calls.
             var onlineNodes = getOnlineNodes();
-            var statesByRouteAndNode = getStatesByRouteAndNode();
+            var allRouteStates = clusterNodeService.getAllRouteStates();
+            var statesByRouteAndNode = groupStatesByRouteAndNode(allRouteStates);
             var allServices = getAllServices();
-            var allLiveRoutes = listRoutes();
+
+            // Pass pre-fetched data so listRoutes() does not re-fetch nodes/states.
+            var allLiveRoutes = listRoutes(onlineNodes, statesByRouteAndNode);
+
+            // Build a status cache from the already-resolved RouteInfo list so that
+            // buildVerbDetails() / buildRestDetails() never need to call getRouteStatus()
+            // again.
+            Map<String, String> routeStatusCache =
+                    allLiveRoutes.stream()
+                            .collect(
+                                    Collectors.toMap(
+                                            RouteInfo::id,
+                                            ri -> ri.status() != null ? ri.status() : "UNKNOWN",
+                                            (a, b) -> a));
 
             for (var service : allServices) {
                 String serviceId = service.getId();
@@ -334,7 +371,8 @@ public class CamelRouteService implements RouteLifecycleService, RouteQueryServi
                                 serviceRoutes,
                                 matchedRestRouteIds,
                                 onlineNodes,
-                                statesByRouteAndNode);
+                                statesByRouteAndNode,
+                                routeStatusCache);
                 var regularRoutes = extractRegularRoutes(serviceRoutes, matchedRestRouteIds);
 
                 var serviceDetails = new LinkedHashMap<String, Object>();
@@ -386,8 +424,12 @@ public class CamelRouteService implements RouteLifecycleService, RouteQueryServi
                 .collect(Collectors.toList());
     }
 
-    private Map<String, Map<String, RouteRuntimeStateEntity>> getStatesByRouteAndNode() {
-        return clusterNodeService.getAllRouteStates().stream()
+    /**
+     * Groups a pre-fetched list of route states into a two-level map: routeId → instanceId → state.
+     */
+    private static Map<String, Map<String, RouteRuntimeStateEntity>> groupStatesByRouteAndNode(
+            List<RouteRuntimeStateEntity> allRouteStates) {
+        return allRouteStates.stream()
                 .collect(
                         Collectors.groupingBy(
                                 RouteRuntimeStateEntity::getRouteId,
@@ -422,7 +464,8 @@ public class CamelRouteService implements RouteLifecycleService, RouteQueryServi
             List<RouteInfo> serviceRoutes,
             Set<String> matchedRestRouteIds,
             List<ClusterNodeEntity> onlineNodes,
-            Map<String, Map<String, RouteRuntimeStateEntity>> statesByRouteAndNode) {
+            Map<String, Map<String, RouteRuntimeStateEntity>> statesByRouteAndNode,
+            Map<String, String> routeStatusCache) {
 
         List<Map<String, Object>> serviceRests = new ArrayList<>();
         serviceRests.addAll(
@@ -432,10 +475,15 @@ public class CamelRouteService implements RouteLifecycleService, RouteQueryServi
                         serviceRoutes,
                         matchedRestRouteIds,
                         onlineNodes,
-                        statesByRouteAndNode));
+                        statesByRouteAndNode,
+                        routeStatusCache));
         serviceRests.addAll(
                 extractStandaloneRestRoutes(
-                        serviceRoutes, matchedRestRouteIds, onlineNodes, statesByRouteAndNode));
+                        serviceRoutes,
+                        matchedRestRouteIds,
+                        onlineNodes,
+                        statesByRouteAndNode,
+                        routeStatusCache));
         return serviceRests;
     }
 
@@ -445,7 +493,8 @@ public class CamelRouteService implements RouteLifecycleService, RouteQueryServi
             List<RouteInfo> serviceRoutes,
             Set<String> matchedRestRouteIds,
             List<ClusterNodeEntity> onlineNodes,
-            Map<String, Map<String, RouteRuntimeStateEntity>> statesByRouteAndNode) {
+            Map<String, Map<String, RouteRuntimeStateEntity>> statesByRouteAndNode,
+            Map<String, String> routeStatusCache) {
 
         List<Map<String, Object>> dslRests = new ArrayList<>();
         if (camelContext instanceof ModelCamelContext modelContext) {
@@ -472,14 +521,19 @@ public class CamelRouteService implements RouteLifecycleService, RouteQueryServi
                                             verb,
                                             actualRouteId,
                                             onlineNodes,
-                                            statesByRouteAndNode));
+                                            statesByRouteAndNode,
+                                            routeStatusCache));
                         }
                     }
 
                     if (restBelongsToService) {
                         dslRests.add(
                                 buildRestDetails(
-                                        rest, verbList, onlineNodes, statesByRouteAndNode));
+                                        rest,
+                                        verbList,
+                                        onlineNodes,
+                                        statesByRouteAndNode,
+                                        routeStatusCache));
                     }
                 }
             }
@@ -491,7 +545,8 @@ public class CamelRouteService implements RouteLifecycleService, RouteQueryServi
             List<RouteInfo> serviceRoutes,
             Set<String> matchedRestRouteIds,
             List<ClusterNodeEntity> onlineNodes,
-            Map<String, Map<String, RouteRuntimeStateEntity>> statesByRouteAndNode) {
+            Map<String, Map<String, RouteRuntimeStateEntity>> statesByRouteAndNode,
+            Map<String, String> routeStatusCache) {
 
         List<Map<String, Object>> standaloneRests = new ArrayList<>();
         for (RouteInfo ri : serviceRoutes) {
@@ -702,7 +757,8 @@ public class CamelRouteService implements RouteLifecycleService, RouteQueryServi
             VerbDefinition verb,
             String actualRouteId,
             List<ClusterNodeEntity> onlineNodes,
-            Map<String, Map<String, RouteRuntimeStateEntity>> statesByRouteAndNode) {
+            Map<String, Map<String, RouteRuntimeStateEntity>> statesByRouteAndNode,
+            Map<String, String> routeStatusCache) {
 
         String method = verb.getClass().getSimpleName().replace("Definition", "").toUpperCase();
         boolean hasRoute = actualRouteId != null && !actualRouteId.isEmpty();
@@ -711,7 +767,9 @@ public class CamelRouteService implements RouteLifecycleService, RouteQueryServi
         verbDetails.put("method", method);
         verbDetails.put("id", Objects.toString(verb.getId(), ""));
         verbDetails.put("routeId", Objects.toString(actualRouteId, ""));
-        verbDetails.put("status", hasRoute ? getRouteStatus(actualRouteId) : "UNKNOWN");
+        verbDetails.put(
+                "status",
+                hasRoute ? routeStatusCache.getOrDefault(actualRouteId, "UNKNOWN") : "UNKNOWN");
         verbDetails.put("description", Objects.toString(verb.getDescriptionText(), ""));
         verbDetails.put("consumes", Objects.toString(verb.getConsumes(), ""));
         verbDetails.put("produces", Objects.toString(verb.getProduces(), ""));
@@ -754,7 +812,8 @@ public class CamelRouteService implements RouteLifecycleService, RouteQueryServi
             RestDefinition rest,
             List<Map<String, Object>> verbList,
             List<ClusterNodeEntity> onlineNodes,
-            Map<String, Map<String, RouteRuntimeStateEntity>> statesByRouteAndNode) {
+            Map<String, Map<String, RouteRuntimeStateEntity>> statesByRouteAndNode,
+            Map<String, String> routeStatusCache) {
 
         String basePath = rest.getPath() != null ? rest.getPath() : "";
         String normalizedPath =
@@ -773,7 +832,7 @@ public class CamelRouteService implements RouteLifecycleService, RouteQueryServi
         if (!verbList.isEmpty()) {
             restRouteId = (String) verbList.get(0).get("routeId");
             if (restRouteId != null && !restRouteId.isEmpty()) {
-                restStatus = getRouteStatus(restRouteId);
+                restStatus = routeStatusCache.getOrDefault(restRouteId, "UNKNOWN");
             }
         }
         restDetails.put("status", restStatus);

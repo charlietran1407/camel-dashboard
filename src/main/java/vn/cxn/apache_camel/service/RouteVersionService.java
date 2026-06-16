@@ -76,13 +76,8 @@ public class RouteVersionService {
 
     @PostConstruct
     public void init() {
-        try {
-            Files.createDirectories(Paths.get(storageDir));
-            log.info("RouteVersionService initialized with PostgreSQL backend.");
-            migrateExistingRecords();
-        } catch (IOException e) {
-            log.error("Failed to initialize RouteVersionService", e);
-        }
+        log.info("RouteVersionService initialized with PostgreSQL backend.");
+        migrateExistingRecords();
     }
 
     private void migrateExistingRecords() {
@@ -161,16 +156,7 @@ public class RouteVersionService {
 
                 versionRepository.save(entity);
 
-                // Update disk cache
-                try {
-                    Path contentFile = Paths.get(storageDir, entity.getId() + ".yaml");
-                    Files.writeString(contentFile, ensuredContent);
-                } catch (IOException e) {
-                    log.error(
-                            "Failed to write healed content to disk for version {}",
-                            entity.getId(),
-                            e);
-                }
+                // Disk cache update removed: everything is in the DB now
             }
         } catch (Exception e) {
             log.warn("Failed to heal route version {}: {}", entity.getId(), e.getMessage());
@@ -240,12 +226,7 @@ public class RouteVersionService {
 
         RouteVersionEntity saved = versionRepository.save(rve);
 
-        try {
-            Path contentFile = Paths.get(storageDir, versionId + ".yaml");
-            Files.writeString(contentFile, content);
-        } catch (IOException e) {
-            log.error("Failed to save route content to disk cache for version {}", versionId, e);
-        }
+        // Disk cache update removed: everything is in the DB now
 
         RouteVersion rv = routeVersionMapper.toModel(saved);
         rv.setOriginalRouteIds(discoveredIds);
@@ -258,6 +239,17 @@ public class RouteVersionService {
         return versionRepository.findAllSummary().stream()
                 .map(routeVersionMapper::toModel)
                 .collect(Collectors.toList());
+    }
+
+    public Map<String, Integer> getVersionCountsByServiceId() {
+        List<Object[]> results = versionRepository.countVersionsByServiceId();
+        Map<String, Integer> counts = new HashMap<>();
+        for (Object[] row : results) {
+            if (row[0] != null && row[1] != null) {
+                counts.put(row[0].toString(), ((Number) row[1]).intValue());
+            }
+        }
+        return counts;
     }
 
     public List<RouteVersion> getVersionsByServiceId(String serviceId) {
@@ -393,11 +385,7 @@ public class RouteVersionService {
                 }
             }
 
-            try {
-                Files.deleteIfExists(Paths.get(storageDir, versionId + ".yaml"));
-            } catch (IOException e) {
-                log.warn("Could not delete content file for version {}", versionId);
-            }
+            // Disk cache deletion removed: everything is in the DB now
 
             routeStateService.deleteByVersionId(vUuid);
             versionRepository.delete(rv);
@@ -505,24 +493,19 @@ public class RouteVersionService {
     }
 
     public String getContentFromDisk(String versionId) throws IOException {
-        Path contentFile = Paths.get(storageDir, versionId + ".yaml");
-        if (Files.exists(contentFile)) {
-            return Files.readString(contentFile, java.nio.charset.StandardCharsets.UTF_8);
-        }
+        return getContentDb(versionId);
+    }
+
+    public String getContentDb(String versionId) throws IOException {
         try {
             Optional<RouteVersionEntity> opt = versionRepository.findById(parseUuid(versionId));
             if (opt.isPresent() && opt.get().getYamlContent() != null) {
-                try {
-                    Files.writeString(contentFile, opt.get().getYamlContent());
-                } catch (Exception ignored) {
-                }
                 return opt.get().getYamlContent();
             }
         } catch (Exception e) {
-            throw new IOException(
-                    "Failed to load content from DB/Disk for version: " + versionId, e);
+            throw new IOException("Failed to load content from DB for version: " + versionId, e);
         }
-        throw new IOException("Content file and DB record not found for version: " + versionId);
+        throw new IOException("DB record not found for version: " + versionId);
     }
 
     @Transactional

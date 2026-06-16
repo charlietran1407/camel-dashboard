@@ -349,6 +349,33 @@ class RouteValidationServiceTest {
         assertThat(result.getWarnings()).isEmpty();
     }
 
+    @Test
+    void validatesYamlWithBeansInPreDeployMode() {
+        String yaml =
+                """
+                - route:
+                    id: routeWithBeans
+                    from:
+                      uri: direct:start
+                      steps:
+                        - to:
+                            uri: bean:myCustomModel?method=length
+                - beans:
+                    - name: myCustomModel
+                      type: java.lang.String
+                """;
+
+        RouteValidationResult result =
+                validationService.validate(
+                        "5e5ae536-07cb-4433-98af-ed4cda2fe966",
+                        "routeWithBeans.yaml",
+                        yaml,
+                        "PRE_DEPLOY");
+
+        assertThat(result.getIsValid()).isTrue();
+        assertThat(result.getErrors()).isEmpty();
+    }
+
     private vn.cxn.apache_camel.repository.RouteVersionSummary toSummary(
             vn.cxn.apache_camel.model.entity.RouteVersionEntity entity) {
         return (vn.cxn.apache_camel.repository.RouteVersionSummary)

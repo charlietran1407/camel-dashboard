@@ -11,12 +11,16 @@
 	</parent>
 	<groupId>vn.cxn</groupId>
 	<artifactId>camel-dashboard</artifactId>
-	<version>1.2.5</version>
+	<version>1.2.8</version>
 	<name>Camel Dashboard</name>
 	<description>A dashboard for managing Apache Camel routes.</description>
 	<url />
 	<licenses>
-		<license />
+		<license>
+			<name>Apache License, Version 2.0</name>
+			<url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+			<distribution>repo</distribution>
+		</license>
 	</licenses>
 	<developers>
 		<developer>
@@ -25,7 +29,7 @@
 		</developer>
 	</developers>
 	<properties>
-		<java.version>25</java.version>
+		<java.version>21</java.version>
 		<spring-ai.version>1.1.7</spring-ai.version>
 		<apache-camel.version>4.20.0</apache-camel.version>
 	</properties>
@@ -324,13 +328,6 @@
 								<profile>dev</profile>
 							</profiles>
 						</configuration>
-						<executions>
-							<execution>
-								<goals>
-									<goal>repackage</goal>
-								</goals>
-							</execution>
-						</executions>
 					</plugin>
 				</plugins>
 			</build>
@@ -352,6 +349,7 @@
 					<execution>
 						<goals>
 							<goal>build-info</goal>
+							<goal>repackage</goal>
 						</goals>
 					</execution>
 				</executions>

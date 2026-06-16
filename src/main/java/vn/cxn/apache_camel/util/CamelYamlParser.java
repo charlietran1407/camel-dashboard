@@ -125,11 +125,10 @@ public final class CamelYamlParser {
         try {
             org.yaml.snakeyaml.Yaml yaml = new org.yaml.snakeyaml.Yaml();
             Object obj = yaml.load(content);
-            if (obj instanceof List) {
+            if (obj instanceof List<?> list) {
                 List<Object> newList = new ArrayList<>();
-                for (Object element : (List<Object>) obj) {
-                    if (element instanceof Map) {
-                        Map<String, Object> map = (Map<String, Object>) element;
+                for (Object element : list) {
+                    if (element instanceof Map<?, ?> map) {
                         if (map.containsKey("metadata")) {
                             continue;
                         }
@@ -142,11 +141,11 @@ public final class CamelYamlParser {
                     }
                 }
                 return yaml.dump(newList);
-            } else if (obj instanceof Map) {
-                Map<String, Object> map = new LinkedHashMap<>((Map<String, Object>) obj);
-                map.remove("metadata");
-                map.remove("beans");
-                return yaml.dump(map);
+            } else if (obj instanceof Map<?, ?> map) {
+                Map<Object, Object> newMap = new LinkedHashMap<>(map);
+                newMap.remove("metadata");
+                newMap.remove("beans");
+                return yaml.dump(newMap);
             }
         } catch (Exception e) {
             log.warn("Failed to strip metadata and beans using SnakeYAML: {}", e.getMessage());
@@ -270,15 +269,10 @@ public final class CamelYamlParser {
         return paths;
     }
 
-    /**
-     * Parse and extract rest parameters for a specific route from fallback YAML/XML using a
-     * lightweight CamelContext.
-     */
-    public static List<RestParamInfo> parseRestParams(
-            String content, String originalId, String sourceUri) {
-        List<RestParamInfo> restParams = new ArrayList<>();
+    /** Extracts REST definitions from the YAML/XML content using a lightweight CamelContext. */
+    public static List<RestDefinition> parseRestDefinitions(String content) {
         if (content == null || content.isBlank()) {
-            return restParams;
+            return new ArrayList<>();
         }
 
         String resourceName = "temp.yaml";
@@ -292,77 +286,102 @@ public final class CamelYamlParser {
         try (DefaultCamelContext tempContext = new DefaultCamelContext()) {
             Resource resource = ResourceHelper.fromString(resourceName, cleanedContent);
             PluginHelper.getRoutesLoader(tempContext).loadRoutes(resource);
+            return new ArrayList<>(tempContext.getRestDefinitions());
+        } catch (Exception e) {
+            log.warn("Failed to parse REST definitions: {}", e.getMessage());
+            return new ArrayList<>();
+        }
+    }
 
-            List<RestDefinition> restDefinitions = tempContext.getRestDefinitions();
-            if (restDefinitions != null) {
-                for (RestDefinition rest : restDefinitions) {
-                    if (rest.getVerbs() != null) {
-                        for (VerbDefinition verb : rest.getVerbs()) {
-                            String verbRouteId = verb.getRouteId();
+    /**
+     * Extracts REST parameters matching a specific route from a pre-parsed list of REST
+     * definitions.
+     */
+    public static List<RestParamInfo> extractParamsFromDefinitions(
+            List<RestDefinition> restDefinitions, String originalId, String sourceUri) {
+        List<RestParamInfo> restParams = new ArrayList<>();
+        if (restDefinitions == null) {
+            return restParams;
+        }
 
-                            // 1. Route ID match strategies
-                            boolean matches =
-                                    (originalId != null && originalId.equals(verbRouteId))
-                                            || (verbRouteId != null
-                                                    && originalId != null
-                                                    && originalId.endsWith("__" + verbRouteId));
+        for (RestDefinition rest : restDefinitions) {
+            if (rest.getVerbs() != null) {
+                for (VerbDefinition verb : rest.getVerbs()) {
+                    String verbRouteId = verb.getRouteId();
 
-                            // 2. HTTP method + path match against sourceUri strategy
-                            if (!matches
-                                    && sourceUri != null
-                                    && sourceUri.trim().toLowerCase().startsWith("rest:")) {
-                                String verbMethod =
-                                        verb.getClass()
-                                                .getSimpleName()
-                                                .replace("Definition", "")
-                                                .toLowerCase();
-                                String restBasePath = rest.getPath() != null ? rest.getPath() : "";
-                                String verbSubPath = verb.getPath() != null ? verb.getPath() : "";
-                                String combinedPath =
-                                        ("/" + restBasePath + "/" + verbSubPath)
-                                                .replace('\\', '/')
-                                                .replaceAll("/+", "/")
-                                                .replaceAll("/+$", "");
-                                if (combinedPath.isEmpty()) {
-                                    combinedPath = "/";
-                                }
-                                String cleanSource =
-                                        sourceUri
-                                                .replaceAll("\\?.*$", "")
-                                                .replaceAll("/+$", "")
-                                                .toLowerCase();
-                                String expected1 =
-                                        "rest://" + verbMethod + ":" + combinedPath.toLowerCase();
-                                String expected2 =
-                                        "rest:" + verbMethod + ":" + combinedPath.toLowerCase();
-                                matches =
-                                        cleanSource.equals(expected1)
-                                                || cleanSource.equals(expected2)
-                                                || cleanSource.startsWith(expected1 + "/")
-                                                || cleanSource.startsWith(expected2 + "/");
-                            }
+                    // 1. Route ID match strategies
+                    boolean matches =
+                            (originalId != null && originalId.equals(verbRouteId))
+                                    || (verbRouteId != null
+                                            && originalId != null
+                                            && originalId.endsWith("__" + verbRouteId));
 
-                            if (matches && verb.getParams() != null) {
-                                for (ParamDefinition param : verb.getParams()) {
-                                    restParams.add(
-                                            new RestParamInfo(
-                                                    param.getName(),
-                                                    param.getType() != null
-                                                            ? param.getType().name().toLowerCase()
-                                                            : "query",
-                                                    param.getDataType() != null
-                                                            ? param.getDataType()
-                                                            : "string",
-                                                    param.getRequired() != null
-                                                            ? param.getRequired()
-                                                            : false,
-                                                    param.getDescription()));
-                                }
-                            }
+                    // 2. HTTP method + path match against sourceUri strategy
+                    if (!matches
+                            && sourceUri != null
+                            && sourceUri.trim().toLowerCase().startsWith("rest:")) {
+                        String verbMethod =
+                                verb.getClass()
+                                        .getSimpleName()
+                                        .replace("Definition", "")
+                                        .toLowerCase();
+                        String restBasePath = rest.getPath() != null ? rest.getPath() : "";
+                        String verbSubPath = verb.getPath() != null ? verb.getPath() : "";
+                        String combinedPath =
+                                ("/" + restBasePath + "/" + verbSubPath)
+                                        .replace('\\', '/')
+                                        .replaceAll("/+", "/")
+                                        .replaceAll("/+$", "");
+                        if (combinedPath.isEmpty()) {
+                            combinedPath = "/";
+                        }
+                        String cleanSource =
+                                sourceUri
+                                        .replaceAll("\\?.*$", "")
+                                        .replaceAll("/+$", "")
+                                        .toLowerCase();
+                        String expected1 =
+                                "rest://" + verbMethod + ":" + combinedPath.toLowerCase();
+                        String expected2 = "rest:" + verbMethod + ":" + combinedPath.toLowerCase();
+                        matches =
+                                cleanSource.equals(expected1)
+                                        || cleanSource.equals(expected2)
+                                        || cleanSource.startsWith(expected1 + "/")
+                                        || cleanSource.startsWith(expected2 + "/");
+                    }
+
+                    if (matches && verb.getParams() != null) {
+                        for (ParamDefinition param : verb.getParams()) {
+                            restParams.add(
+                                    new RestParamInfo(
+                                            param.getName(),
+                                            param.getType() != null
+                                                    ? param.getType().name().toLowerCase()
+                                                    : "query",
+                                            param.getDataType() != null
+                                                    ? param.getDataType()
+                                                    : "string",
+                                            param.getRequired() != null
+                                                    ? param.getRequired()
+                                                    : false,
+                                            param.getDescription()));
                         }
                     }
                 }
             }
+        }
+        return restParams;
+    }
+
+    /**
+     * Parse and extract rest parameters for a specific route from fallback YAML/XML using a
+     * lightweight CamelContext.
+     */
+    public static List<RestParamInfo> parseRestParams(
+            String content, String originalId, String sourceUri) {
+        try {
+            List<RestDefinition> restDefinitions = parseRestDefinitions(content);
+            return extractParamsFromDefinitions(restDefinitions, originalId, sourceUri);
         } catch (Exception e) {
             log.warn(
                     "Failed to parse fallback REST parameters of route '{}' using native"
@@ -370,6 +389,6 @@ public final class CamelYamlParser {
                     originalId,
                     e.getMessage());
         }
-        return restParams;
+        return new ArrayList<>();
     }
 }

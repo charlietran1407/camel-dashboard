@@ -9,7 +9,7 @@ public interface RouteMetadataExtractor {
             String id,
             String defaultDescription,
             java.util.Map<String, vn.cxn.apache_camel.model.entity.RouteEntity> routesMap,
-            java.util.Map<String, java.util.List<vn.cxn.apache_camel.model.dto.RouteVersion>>
-                    versionsByRouteId,
+            java.util.Map<String, vn.cxn.apache_camel.model.dto.RouteVersion>
+                    activeVersionsByServiceId,
             java.util.Map<String, java.lang.Integer> totalVersionsByServiceId);
 }

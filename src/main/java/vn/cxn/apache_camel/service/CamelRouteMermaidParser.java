@@ -149,7 +149,6 @@ public class CamelRouteMermaidParser {
         return currentParent;
     }
 
-    @SuppressWarnings("unchecked")
     private static String parseYamlStep(
             Map<?, ?> stepMap,
             String parentNodeId,
