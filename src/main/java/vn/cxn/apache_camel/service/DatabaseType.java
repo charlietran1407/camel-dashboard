@@ -22,6 +22,13 @@ public enum DatabaseType {
             return String.format("%s://%s:%d/%s", getPrefix(), host, port, database);
         }
     },
+    MARIADB("mariadb", "jdbc:mariadb", 3306) {
+        @Override
+        public String formatUrl(
+                String host, int port, String database, String username, String password) {
+            return String.format("%s://%s:%d/%s", getPrefix(), host, port, database);
+        }
+    },
     MSSQL("mssql", "jdbc:sqlserver", 1433) {
         @Override
         public String formatUrl(

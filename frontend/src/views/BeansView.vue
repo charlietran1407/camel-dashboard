@@ -56,10 +56,12 @@ async function uploadBean() {
   data.append('className', form.value.className);
   data.append('description', form.value.description);
   try {
-    await dashboardApi.beans.upload(data);
+    const response = await dashboardApi.beans.upload(data);
+    const uploadedName = response.beanName || form.value.beanName;
     form.value = { file: null, beanName: '', className: '', description: '' };
     fileupload.value.clear();
     await load();
+    toast(t('toast.bean_upload_success', uploadedName), 'success', 10000);
   } catch (error) {
     toast(t('common.error') + error.message, 'error');
   }
@@ -93,6 +95,7 @@ async function beanAction(bean, action) {
         try {
           await dashboardApi.beans.delete(bean.id);
           await load();
+          toast(t('toast.bean_delete_success'), 'success', 10000);
         } catch (error) {
           toast(t('common.error') + error.message, 'error');
         }
@@ -100,8 +103,14 @@ async function beanAction(bean, action) {
     });
   } else {
     try {
-      if (action === 'register') await dashboardApi.beans.register(bean.id);
-      if (action === 'unregister') await dashboardApi.beans.unregister(bean.id);
+      if (action === 'register') {
+        await dashboardApi.beans.register(bean.id);
+        toast(t('toast.bean_register_success', bean.beanName), 'success', 10000);
+      }
+      if (action === 'unregister') {
+        await dashboardApi.beans.unregister(bean.id);
+        toast(t('toast.bean_unregister_success', bean.beanName), 'info', 10000);
+      }
       await load();
     } catch (error) {
       toast(t('common.error') + error.message, 'error');

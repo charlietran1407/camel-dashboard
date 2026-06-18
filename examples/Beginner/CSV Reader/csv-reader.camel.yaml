@@ -1,0 +1,39 @@
+# metadata:
+#   camelVersion: 4.20.0
+#   description: "A beginner-friendly Camel route that exposes a POST /csv endpoint, receives a CSV file, unmarshals it, and logs the rows."
+#   aiHints:
+#     component: "platform-http"
+#     path: "/csv"
+#     method: "POST"
+#     dataformat: "csv"
+#     routeId: "csv-reader-route"
+
+- route:
+    id: csv-reader-route
+    from:
+      uri: platform-http
+      parameters:
+        path: /csv
+        httpMethodRestrict: POST
+      steps:
+        - log: "Received CSV upload request"
+        - unmarshal:
+            id: unmarshalCsv
+            csv: {}
+        - split:
+            id: splitCsvRows
+            simple: "${body}"
+            steps:
+              - log: "CSV Row: ${body}"
+        - setHeader:
+            id: setResponseContentType
+            name: Content-Type
+            constant:
+              expression: application/json
+        - setBody:
+            id: setResponseJson
+            simple: |
+              {
+                "status": "success",
+                "message": "CSV file processed and logged successfully"
+              }

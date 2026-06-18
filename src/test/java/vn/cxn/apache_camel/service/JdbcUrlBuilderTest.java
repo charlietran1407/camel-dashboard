@@ -47,6 +47,18 @@ class JdbcUrlBuilderTest {
     }
 
     @Test
+    void testMariadbUrlFormat() {
+        DbConnectionEntity conn = new DbConnectionEntity();
+        conn.setType("mariadb");
+        conn.setHost("127.0.0.1");
+        conn.setPort(3306);
+        conn.setDatabaseName("schema");
+
+        String url = builder.build(conn);
+        assertThat(url).isEqualTo("jdbc:mariadb://127.0.0.1:3306/schema");
+    }
+
+    @Test
     void testMssqlUrlFormat() {
         DbConnectionEntity conn = new DbConnectionEntity();
         conn.setType("mssql");

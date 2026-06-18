@@ -10,14 +10,12 @@ services:
       DATASOURCE_URL: ${DATASOURCE_URL}
       DATASOURCE_USERNAME: ${DATASOURCE_USERNAME}
       DATASOURCE_PASSWORD: ${DATASOURCE_PASSWORD}
-      CAMEL_DASHBOARD_STORAGE_DIR: ${CAMEL_DASHBOARD_STORAGE_DIR}
       CAMEL_DASHBOARD_ENCRYPT_KEY: ${CAMEL_DASHBOARD_ENCRYPT_KEY}
       CAMEL_DASHBOARD_ENCRYPT_SALT: ${CAMEL_DASHBOARD_ENCRYPT_SALT}
       CAMEL_DASHBOARD_CLUSTER_GROUP: ${CAMEL_DASHBOARD_CLUSTER_GROUP}
       CAMEL_DASHBOARD_CLUSTER_ENABLED: ${CAMEL_DASHBOARD_CLUSTER_ENABLED}
       CAMEL_DASHBOARD_CLUSTER_STREAM_KEY: ${CAMEL_DASHBOARD_CLUSTER_STREAM_KEY}
       CAMEL_DASHBOARD_CLUSTER_CHANNEL: ${CAMEL_DASHBOARD_CLUSTER_CHANNEL}
-      CAMEL_DASHBOARD_LOADER_PATH: ${CAMEL_DASHBOARD_LOADER_PATH}
       CAMEL_CONTEXT_PATH: ${CAMEL_CONTEXT_PATH}
       CAMEL_DASHBOARD_MCP_API_KEY: ${CAMEL_DASHBOARD_MCP_API_KEY}
       OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT}
@@ -27,9 +25,8 @@ services:
       REDIS_PORT: ${REDIS_PORT}
       REDIS_PASSWORD: ${REDIS_PASSWORD}
     volumes:
-      - libs-vol:/app/libs
-      - storage-vol:/app/camel-routes-storage
-      - logs-vol:/app/logs
+      - ./libs:/app/libs
+      - ./logs:/app/logs   
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:8080/actuator/health"]
@@ -37,7 +34,3 @@ services:
       timeout: 10s
       retries: 5
       start_period: 60s
-volumes:
-  libs-vol:
-  storage-vol:
-  logs-vol:

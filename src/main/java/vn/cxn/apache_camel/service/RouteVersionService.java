@@ -32,9 +32,6 @@ public class RouteVersionService {
 
     private static final Logger log = LoggerFactory.getLogger(RouteVersionService.class);
 
-    @Value("${camel.dashboard.storage-dir:./camel-routes-storage}")
-    private String storageDir;
-
     private final RouteVersionRepository versionRepository;
     private final ServiceRepository serviceRepository;
     private final RouteRepository routeRepository;

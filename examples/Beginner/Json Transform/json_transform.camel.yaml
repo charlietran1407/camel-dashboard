@@ -1,0 +1,47 @@
+# metadata:
+#   camelVersion: 4.20.0
+#   description: "A beginner-friendly Camel route that exposes a POST /users/transform endpoint to transform a user JSON body."
+#   aiHints:
+#     component: "rest"
+#     path: "/users/transform"
+#     method: "POST"
+#     routeId: "route-postUserTransform"
+
+- rest:
+    id: restJsonTransform
+    path: /users
+    post:
+      - id: postUserTransform
+        path: /transform
+        to:
+          uri: direct
+          parameters:
+            name: direct-postUserTransform
+        param:
+          - name: lastName
+            type: body
+            required: true
+          - name: firstName
+            type: body
+            required: true
+        consumes: application/json
+- route:
+    from:
+      uri: direct
+      parameters:
+        name: direct-postUserTransform
+      steps:
+        - transform:
+            id: transform-1329
+            simple:
+              expression: >
+                {
+                  "fullName": "${jsonpath($.firstName)} ${jsonpath($.lastName)}",
+                  "status": "processed"
+                }
+        - setHeader:
+            id: setHeader-UserTransform-ContentType
+            name: Content-Type
+            constant:
+              expression: application/json
+    id: route-postUserTransform

@@ -38,7 +38,7 @@ const form = ref({ ...defaultForm });
 
 const dbTypes = [
   { value: 'postgresql', label: 'PostgreSQL' },
-  { value: 'mysql', label: 'MySQL' },
+  { value: 'mariadb', label: 'MariaDB' },
   { value: 'mssql', label: 'SQL Server (MSSQL)' },
   { value: 'oracle', label: 'Oracle Database' },
   { value: 'mongodb', label: 'MongoDB' }
@@ -60,7 +60,7 @@ const filteredConnections = computed(() => {
 watch(() => form.value.type, (newType) => {
   if (form.value.id) return; // Don't overwrite existing connection ports on edit
   if (newType === 'postgresql') form.value.port = 5432;
-  else if (newType === 'mysql') form.value.port = 3306;
+  else if (newType === 'mariadb') form.value.port = 3306;
   else if (newType === 'mssql') form.value.port = 1433;
   else if (newType === 'oracle') form.value.port = 1521;
   else if (newType === 'mongodb') form.value.port = 27017;
