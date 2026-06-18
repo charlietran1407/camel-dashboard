@@ -68,6 +68,9 @@ spring:
   web:
     resources:
       static-locations: classpath:/static/
+    error:
+      whitelabel:
+        enabled: false
 camel:
   springboot:
     message-history: true
@@ -75,7 +78,6 @@ camel:
     run-controller: true
     use-mdc-logging: true
   dashboard:
-    storage-dir: ./camel-routes-storage
     loader-path: ./libs
     encrypt-key: MySuperSecretKey123
     encrypt-salt: cxn-apache-camel-salt-v1

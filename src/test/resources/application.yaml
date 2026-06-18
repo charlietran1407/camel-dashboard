@@ -67,7 +67,6 @@ camel:
     component: platform-http
     context-path: "/cameldash"
   dashboard:
-    storage-dir: ./camel-routes-storage
     encrypt-key: "MySuperSecretKey123"
     encrypt-salt: "cxn-apache-camel-salt-v1"
   component:

@@ -1,0 +1,74 @@
+# metadata:
+#   camelVersion: 4.20.0
+#   description: "A beginner-friendly Camel route that demonstrates exception handling (onException) and REST DSL parameter validation."
+#   aiHints:
+#     component: "rest"
+#     path: "/payment"
+#     method: "GET"
+#     routeId: "exception-handling-route"
+
+- rest:
+    id: restPayment
+    path: /payment
+    get:
+      - id: getPayment
+        to:
+          uri: direct
+          parameters:
+            name: direct-payment
+- onException:
+    exception:
+      - java.lang.IllegalArgumentException
+    handled:
+      constant:
+        expression: "true"
+    steps:
+      - setHeader:
+          id: setHeaderErrorStatus
+          name: CamelHttpResponseCode
+          constant:
+            expression: "400"
+      - setHeader:
+          id: setHeaderErrorContentType
+          name: Content-Type
+          constant:
+            expression: application/json
+      - setBody:
+          id: setErrorBody
+          simple: |
+            {
+              "status": "error",
+              "message": "${exception.message}"
+            }
+
+- route:
+    id: exception-handling-route
+    from:
+      uri: direct
+      parameters:
+        name: direct-payment
+      steps:
+        - choice:
+            when:
+              - simple: "${header.amount} == null"
+                steps:
+                  - throwException:
+                      exceptionType: java.lang.IllegalArgumentException
+                      message: "Missing required query parameter: amount"
+              - simple: "${header.amount} > 0"
+                steps:
+                  - setHeader:
+                      name: Content-Type
+                      constant:
+                        expression: application/json
+                  - setBody:
+                      simple: |
+                        {
+                          "status": "success",
+                          "message": "Payment of ${header.amount} processed successfully."
+                        }
+            otherwise:
+              steps:
+                - throwException:
+                    exceptionType: java.lang.IllegalArgumentException
+                    message: "Invalid amount: ${header.amount}. Amount must be greater than 0."

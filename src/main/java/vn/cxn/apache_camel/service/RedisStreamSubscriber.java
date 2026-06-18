@@ -98,10 +98,43 @@ public class RedisStreamSubscriber {
             ReadOffset readOffset;
             if (checkpoint == null || checkpoint.isBlank()) {
                 log.info(
-                        "RedisStreamSubscriber: No checkpoint found for node '{}'. Replaying from"
-                                + " beginning (0-0)...",
+                        "RedisStreamSubscriber: No checkpoint found for node '{}'. Initializing"
+                                + " checkpoint to the latest stream event...",
                         instanceId);
-                readOffset = ReadOffset.from("0-0");
+                try {
+                    @SuppressWarnings("unchecked")
+                    List<MapRecord<String, Object, Object>> lastRecord =
+                            redisTemplate
+                                    .opsForStream()
+                                    .reverseRange(
+                                            streamKey,
+                                            Range.<String>unbounded(),
+                                            org.springframework.data.redis.connection.Limit.limit()
+                                                    .count(1));
+                    if (lastRecord != null && !lastRecord.isEmpty()) {
+                        String latestId = lastRecord.get(0).getId().getValue();
+                        redisTemplate
+                                .opsForValue()
+                                .set("cluster:checkpoint:" + instanceId, latestId);
+                        log.info(
+                                "RedisStreamSubscriber: Initialized checkpoint for node '{}' to"
+                                        + " latest event ID '{}'",
+                                instanceId,
+                                latestId);
+                        readOffset = ReadOffset.from(latestId);
+                    } else {
+                        log.info(
+                                "RedisStreamSubscriber: Stream '{}' is empty, starting from 0-0",
+                                streamKey);
+                        readOffset = ReadOffset.from("0-0");
+                    }
+                } catch (Exception e) {
+                    log.warn(
+                            "RedisStreamSubscriber: Failed to fetch latest stream record: {}."
+                                    + " Defaulting to 0-0",
+                            e.getMessage());
+                    readOffset = ReadOffset.from("0-0");
+                }
             } else {
                 log.info(
                         "RedisStreamSubscriber: Found checkpoint '{}' for node '{}'. Replaying"

@@ -2,17 +2,12 @@ package vn.cxn.apache_camel.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
-import org.springframework.test.util.ReflectionTestUtils;
 import vn.cxn.apache_camel.model.dto.RouteVersion;
 import vn.cxn.apache_camel.service.mapper.RouteVersionMapperImpl;
 import vn.cxn.apache_camel.service.route_document.YamlRouteDocumentStrategyImpl;
 
 class RouteVersionServiceTest {
-
-    @TempDir Path storageDir;
 
     @Test
     void namespacesRouteIdsPerServiceAndKeepsOriginalRouteId() throws Exception {
@@ -373,7 +368,6 @@ class RouteVersionServiceTest {
                                 new com.fasterxml.jackson.databind.ObjectMapper(),
                                 camelContext,
                                 routeRepo));
-        ReflectionTestUtils.setField(service, "storageDir", storageDir.toString());
         service.init();
 
         String routeId = "test-route";
@@ -438,7 +432,6 @@ class RouteVersionServiceTest {
                                 new com.fasterxml.jackson.databind.ObjectMapper(),
                                 camelContext,
                                 routeRepo));
-        ReflectionTestUtils.setField(service, "storageDir", storageDir.toString());
         service.init();
 
         String routeId = "test-route";
@@ -552,7 +545,6 @@ class RouteVersionServiceTest {
                                 new com.fasterxml.jackson.databind.ObjectMapper(),
                                 camelContext,
                                 routeRepo));
-        ReflectionTestUtils.setField(service, "storageDir", storageDir.toString());
         service.init();
         return service;
     }

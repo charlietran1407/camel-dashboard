@@ -3,23 +3,18 @@ package vn.cxn.apache_camel.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
-import java.nio.file.Path;
 import java.util.ArrayList;
 import org.apache.camel.CamelContext;
 import org.apache.camel.impl.DefaultCamelContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mockito;
-import org.springframework.test.util.ReflectionTestUtils;
 import vn.cxn.apache_camel.model.dto.RouteVersion;
 import vn.cxn.apache_camel.service.mapper.RouteVersionMapperImpl;
 import vn.cxn.apache_camel.service.route_document.YamlRouteDocumentStrategyImpl;
 import vn.cxn.apache_camel.validation.RouteValidationResult;
 
 class RouteValidationServiceTest {
-
-    @TempDir Path storageDir;
 
     private RouteValidationService validationService;
     private CamelContext mainCamelContext;
@@ -122,7 +117,6 @@ class RouteValidationServiceTest {
                                 new com.fasterxml.jackson.databind.ObjectMapper(),
                                 mainCamelContext,
                                 routeRepo));
-        ReflectionTestUtils.setField(routeVersionService, "storageDir", storageDir.toString());
         routeVersionService.init();
 
         dynamicBeanService = Mockito.mock(DynamicBeanService.class);

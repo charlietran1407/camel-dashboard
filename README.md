@@ -4,6 +4,8 @@
 
 **Deploy Apache Camel routes without writing Java.**
 
+English | [Tiếng Việt](README_vi.md)
+
 A modern management dashboard for Apache Camel — upload YAML routes, deploy live,
 monitor clusters, and let your AI assistant do the heavy lifting via native MCP integration.
 
@@ -90,7 +92,8 @@ docker-compose -f dockers/example_docker-compose.yaml up -d
 
 ### 3. Open the Dashboard
 
-Navigate to **http://localhost:8080** — you should see the Camel Dashboard!
+- **Camel Dashboard**: Navigate to **http://localhost:8080** — you should see the Camel Dashboard!
+- **Jaeger (Distributed Tracing)**: Navigate to **http://localhost:16686** to view route execution and tracing logs.
 
 ### 4. Run in Dev Mode (local development)
 
@@ -224,7 +227,6 @@ All configuration is via environment variables. No secrets should be hardcoded.
 |---|---|---|
 | `SERVER_PORT` | `8080` | HTTP server port |
 | `CAMEL_CONTEXT_PATH` | `/cameldash` | Camel REST base path |
-| `CAMEL_DASHBOARD_STORAGE_DIR` | `./camel-routes-storage` | Route file storage directory |
 | `CAMEL_DASHBOARD_CLUSTER_ENABLED` | `false` | Enable Redis cluster coordination |
 | `CAMEL_DASHBOARD_CLUSTER_STREAM_KEY` | `{group}:cluster:event:stream` | Redis stream key |
 | `CAMEL_DASHBOARD_CLUSTER_CHANNEL` | `{group}:cluster:event:channel` | Redis pub/sub channel |
@@ -308,10 +310,10 @@ cd frontend && pnpm build
 ### Run
 
 ```powershell
-java -jar target/apache-camel-dashboard-xxx.jar
+java -Dloader.path=libs -jar target/camel-dashboard-xxx.jar
 ```
 
-> **Note**: The `libs/` directory must be co-located with the JAR for dynamic driver loading.
+> **Note**: The `libs/` directory (by default `./libs` in the working directory) must be specified via `-Dloader.path` for dynamic driver and component loading to work.
 
 ### Docker
 

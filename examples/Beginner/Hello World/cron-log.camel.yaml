@@ -1,0 +1,23 @@
+# metadata:
+#   camelVersion: 4.20.0
+#   description: "A beginner-friendly Camel route that logs a message every 5 seconds using cron scheduled execution."
+#   aiHints:
+#     component: "cron"
+#     schedule: "0/5 * * * * ?"
+#     properties:
+#       - "cron.message"
+#     routeId: "cron-log"
+
+- route:
+    id: cron-log
+    from:
+      uri: cron:tab
+      parameters:
+        schedule: "0/5 * * * * ?"
+      steps:
+        - setBody:
+            expression:
+              simple:
+                expression: "{{cron.message}} ${date:now:HH:mm:ss}"
+        - log:
+            message: "${body}"

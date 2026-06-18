@@ -1,0 +1,26 @@
+# metadata:
+#   camelVersion: 4.20.0
+#   description: "A beginner-friendly Camel route that uses a timer to trigger an HTTP GET request to JSONPlaceholder and logs the JSON response."
+#   aiHints:
+#     component: "timer, http"
+#     endpoint: "https://jsonplaceholder.typicode.com/posts/1"
+#     routeId: "route-3540"
+
+- route:
+    id: route-3540
+    from:
+      id: from-9164
+      uri: timer
+      parameters:
+        period: "1000"
+        timerName: template
+        repeatCount: 10
+      steps:
+        - to:
+            id: to-2695
+            uri: http
+            parameters:
+              httpUri: https://jsonplaceholder.typicode.com/posts/1
+        - log:
+            id: log-1724
+            message: ${body}

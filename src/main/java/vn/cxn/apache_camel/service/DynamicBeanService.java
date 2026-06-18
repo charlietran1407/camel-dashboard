@@ -1,9 +1,6 @@
 package vn.cxn.apache_camel.service;
 
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
-import java.io.File;
 import java.io.IOException;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -17,29 +14,26 @@ import java.util.stream.Collectors;
 import org.apache.camel.CamelContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import vn.cxn.apache_camel.model.dto.BeanInfo;
+import vn.cxn.apache_camel.model.entity.BeanEntity;
+import vn.cxn.apache_camel.repository.BeanRepository;
 
 @Service
+@Transactional(readOnly = true)
 public class DynamicBeanService {
 
     private static final Logger log = LoggerFactory.getLogger(DynamicBeanService.class);
-    private static final String INDEX_FILE = "bean-index.json";
-
-    @Value("${camel.dashboard.storage-dir:./camel-routes-storage}")
-    private String storageDir;
 
     private final CamelContext camelContext;
-    private final ObjectMapper objectMapper;
+    private final BeanRepository beanRepository;
 
-    public DynamicBeanService(CamelContext camelContext, ObjectMapper objectMapper) {
+    public DynamicBeanService(CamelContext camelContext, BeanRepository beanRepository) {
         this.camelContext = camelContext;
-        this.objectMapper = objectMapper;
+        this.beanRepository = beanRepository;
     }
 
-    // beanId -> BeanInfo metadata
-    private final Map<String, BeanInfo> beanRegistry = new ConcurrentHashMap<>();
     // beanId -> the actual loaded instance (kept alive to avoid GC)
     private final Map<String, Object> liveInstances = new ConcurrentHashMap<>();
     // beanId -> ClassLoader (kept alive so classes remain loadable)
@@ -48,11 +42,9 @@ public class DynamicBeanService {
     @PostConstruct
     public void init() {
         try {
-            Files.createDirectories(Paths.get(storageDir, "beans"));
-            loadIndex();
             // Re-register all previously registered beans on startup
-            beanRegistry.values().stream()
-                    .filter(BeanInfo::isRegistered)
+            beanRepository.findAll().stream()
+                    .filter(BeanEntity::isRegistered)
                     .forEach(
                             b -> {
                                 try {
@@ -62,12 +54,10 @@ public class DynamicBeanService {
                                             "Failed to restore bean '{}' on startup: {}",
                                             b.getBeanName(),
                                             e.getMessage());
-                                    b.setRegistered(false);
                                 }
                             });
-            saveIndex();
-            log.info("DynamicBeanService initialized. {} bean(s) loaded.", beanRegistry.size());
-        } catch (IOException e) {
+            log.info("DynamicBeanService initialized. Active beans loaded from DB.");
+        } catch (Exception e) {
             log.error("Failed to initialize DynamicBeanService", e);
         }
     }
@@ -81,59 +71,91 @@ public class DynamicBeanService {
      * @param className fully-qualified class name to instantiate
      * @param description optional description
      */
+    @Transactional
     public BeanInfo uploadBean(
             String jarFileName,
             byte[] jarBytes,
             String beanName,
             String className,
             String description)
-            throws IOException {
-        String beanId = UUID.randomUUID().toString();
-        Path jarPath = Paths.get(storageDir, "beans", beanId + ".jar");
-        Files.write(jarPath, jarBytes);
+            throws Exception {
+        // Find existing bean with the same name
+        Optional<BeanEntity> existingOpt = beanRepository.findByBeanNameIgnoreCase(beanName);
+        if (existingOpt.isPresent()) {
+            BeanEntity existing = existingOpt.get();
+            log.info(
+                    "Found existing bean with name '{}'. Automatically deactivating and deleting"
+                            + " it.",
+                    beanName);
+            try {
+                deleteBean(existing.getId().toString());
+                beanRepository.flush();
+            } catch (Exception e) {
+                log.warn(
+                        "Failed to delete existing duplicate bean '{}': {}",
+                        beanName,
+                        e.getMessage());
+            }
+        }
 
-        BeanInfo info = new BeanInfo();
-        info.setId(beanId);
-        info.setBeanName(beanName);
-        info.setClassName(className);
-        info.setJarFileName(jarFileName);
-        info.setDescription(description);
-        info.setRegistered(false);
-        info.setUploadedAt(Instant.now());
+        UUID beanId = UUID.randomUUID();
 
-        beanRegistry.put(beanId, info);
-        saveIndex();
+        BeanEntity entity = new BeanEntity();
+        entity.setId(beanId);
+        entity.setBeanName(beanName);
+        entity.setClassName(className);
+        entity.setJarFileName(jarFileName);
+        entity.setJarData(jarBytes);
+        entity.setDescription(description);
+        entity.setRegistered(false);
+        entity.setUploadedAt(Instant.now());
+
+        beanRepository.save(entity);
         log.info(
-                "Bean JAR uploaded: beanName={}, class={}, file={}",
+                "Bean JAR uploaded and saved to DB: beanName={}, class={}, file={}",
                 beanName,
                 className,
                 jarFileName);
-        return info;
+
+        // Automatically register/activate the newly uploaded bean
+        try {
+            registerBean(beanId.toString());
+        } catch (Exception e) {
+            log.error(
+                    "Failed to automatically register new bean '{}': {}", beanName, e.getMessage());
+        }
+
+        return toDto(entity);
     }
 
     /** Load the bean from its stored JAR and register it in the Camel Registry. */
+    @Transactional
     public BeanInfo registerBean(String beanId) throws Exception {
-        BeanInfo info = beanRegistry.get(beanId);
-        if (info == null) throw new IllegalArgumentException("Bean not found: " + beanId);
+        Optional<BeanEntity> opt = beanRepository.findById(UUID.fromString(beanId));
+        if (opt.isEmpty()) throw new IllegalArgumentException("Bean not found: " + beanId);
 
-        reloadBean(info);
-        info.setRegistered(true);
-        info.setRegisteredAt(Instant.now());
-        saveIndex();
-        log.info("Bean '{}' registered in Camel Registry", info.getBeanName());
-        return info;
+        BeanEntity entity = opt.get();
+        reloadBean(entity);
+        entity.setRegistered(true);
+        entity.setRegisteredAt(Instant.now());
+        beanRepository.save(entity);
+        log.info("Bean '{}' registered in Camel Registry", entity.getBeanName());
+        return toDto(entity);
     }
 
     /** Remove a bean from the Camel Registry (but keep its JAR). */
+    @Transactional
     public BeanInfo unregisterBean(String beanId) throws Exception {
-        BeanInfo info = beanRegistry.get(beanId);
-        if (info == null) throw new IllegalArgumentException("Bean not found: " + beanId);
+        Optional<BeanEntity> opt = beanRepository.findById(UUID.fromString(beanId));
+        if (opt.isEmpty()) throw new IllegalArgumentException("Bean not found: " + beanId);
+
+        BeanEntity entity = opt.get();
 
         // Unbind from Camel registry
         try {
-            camelContext.getRegistry().unbind(info.getBeanName());
+            camelContext.getRegistry().unbind(entity.getBeanName());
         } catch (Exception e) {
-            log.warn("Could not unbind bean '{}': {}", info.getBeanName(), e.getMessage());
+            log.warn("Could not unbind bean '{}': {}", entity.getBeanName(), e.getMessage());
         }
 
         // Release class loader
@@ -146,34 +168,38 @@ public class DynamicBeanService {
         }
         liveInstances.remove(beanId);
 
-        info.setRegistered(false);
-        saveIndex();
-        log.info("Bean '{}' unregistered from Camel Registry", info.getBeanName());
-        return info;
+        entity.setRegistered(false);
+        beanRepository.save(entity);
+        log.info("Bean '{}' unregistered from Camel Registry", entity.getBeanName());
+        return toDto(entity);
     }
 
     /** Delete a bean entry and its JAR file. */
+    @Transactional
     public boolean deleteBean(String beanId) throws Exception {
-        BeanInfo info = beanRegistry.get(beanId);
-        if (info == null) return false;
+        Optional<BeanEntity> opt = beanRepository.findById(UUID.fromString(beanId));
+        if (opt.isEmpty()) return false;
 
-        if (info.isRegistered()) unregisterBean(beanId);
+        BeanEntity entity = opt.get();
+        if (entity.isRegistered()) unregisterBean(beanId);
 
-        beanRegistry.remove(beanId);
-        Files.deleteIfExists(Paths.get(storageDir, "beans", beanId + ".jar"));
-        saveIndex();
+        beanRepository.delete(entity);
         return true;
     }
 
     public List<BeanInfo> getAllBeans() {
-        return new ArrayList<>(beanRegistry.values())
-                .stream()
-                        .sorted(Comparator.comparing(BeanInfo::getUploadedAt).reversed())
-                        .collect(Collectors.toList());
+        return beanRepository.findAll().stream()
+                .map(this::toDto)
+                .sorted(Comparator.comparing(BeanInfo::getUploadedAt).reversed())
+                .collect(Collectors.toList());
     }
 
     public Optional<BeanInfo> getBeanById(String beanId) {
-        return Optional.ofNullable(beanRegistry.get(beanId));
+        try {
+            return beanRepository.findById(UUID.fromString(beanId)).map(this::toDto);
+        } catch (Exception e) {
+            return Optional.empty();
+        }
     }
 
     /**
@@ -181,35 +207,48 @@ public class DynamicBeanService {
      * the user pick the right className.
      */
     public List<String> listClassesInJar(String beanId) throws IOException {
-        Path jarPath = Paths.get(storageDir, "beans", beanId + ".jar");
+        Optional<BeanEntity> opt = beanRepository.findById(UUID.fromString(beanId));
+        if (opt.isEmpty()) throw new IllegalArgumentException("Bean not found: " + beanId);
+
+        BeanEntity entity = opt.get();
         List<String> classes = new ArrayList<>();
-        try (JarFile jar = new JarFile(jarPath.toFile())) {
-            Enumeration<JarEntry> entries = jar.entries();
-            while (entries.hasMoreElements()) {
-                JarEntry entry = entries.nextElement();
-                if (entry.getName().endsWith(".class") && !entry.getName().contains("$")) {
-                    String className =
-                            entry.getName()
-                                    .replace('/', '.')
-                                    .replace('\\', '.')
-                                    .replaceAll("\\.class$", "");
-                    classes.add(className);
+
+        // Write bytes to temp file to scan classes in JAR
+        Path tempJarPath = Files.createTempFile("scan-" + beanId + "-", ".jar");
+        try {
+            Files.write(tempJarPath, entity.getJarData());
+            try (JarFile jar = new JarFile(tempJarPath.toFile())) {
+                Enumeration<JarEntry> entries = jar.entries();
+                while (entries.hasMoreElements()) {
+                    JarEntry entry = entries.nextElement();
+                    if (entry.getName().endsWith(".class") && !entry.getName().contains("$")) {
+                        String className =
+                                entry.getName()
+                                        .replace('/', '.')
+                                        .replace('\\', '.')
+                                        .replaceAll("\\.class$", "");
+                        classes.add(className);
+                    }
                 }
             }
+        } finally {
+            Files.deleteIfExists(tempJarPath);
         }
         return classes;
     }
 
     // ─── Internal helpers ────────────────────────────────────────
 
-    private void reloadBean(BeanInfo info) throws Exception {
-        Path jarPath = Paths.get(storageDir, "beans", info.getId() + ".jar");
-        if (!Files.exists(jarPath)) {
-            throw new IllegalStateException(
-                    "JAR file missing for bean '" + info.getBeanName() + "'");
-        }
+    private void reloadBean(BeanEntity entity) throws Exception {
+        // Write BLOB bytes to a temporary JAR file on the local filesystem
+        Path tempJarPath = Files.createTempFile("bean-" + entity.getId() + "-", ".jar");
+        Files.write(tempJarPath, entity.getJarData());
+        tempJarPath.toFile().deleteOnExit();
+
+        String beanId = entity.getId().toString();
+
         // Close old class loader if any
-        URLClassLoader old = classLoaders.remove(info.getId());
+        URLClassLoader old = classLoaders.remove(beanId);
         if (old != null) {
             try {
                 old.close();
@@ -220,42 +259,34 @@ public class DynamicBeanService {
         // Create isolated class loader for the JAR
         URLClassLoader cl =
                 new URLClassLoader(
-                        new URL[] {jarPath.toUri().toURL()},
+                        new URL[] {tempJarPath.toUri().toURL()},
                         Thread.currentThread().getContextClassLoader());
-        classLoaders.put(info.getId(), cl);
+        classLoaders.put(beanId, cl);
 
         // Instantiate the class using the no-arg constructor
-        Class<?> clazz = cl.loadClass(info.getClassName());
+        Class<?> clazz = cl.loadClass(entity.getClassName());
         Object instance = clazz.getDeclaredConstructor().newInstance();
-        liveInstances.put(info.getId(), instance);
+        liveInstances.put(beanId, instance);
 
         // Bind in Camel Registry
-        camelContext.getRegistry().bind(info.getBeanName(), instance);
+        camelContext.getRegistry().bind(entity.getBeanName(), instance);
         log.info(
                 "Bound bean '{}' ({}) into Camel Registry",
-                info.getBeanName(),
-                info.getClassName());
+                entity.getBeanName(),
+                entity.getClassName());
     }
 
-    private void saveIndex() {
-        try {
-            File f = new File(storageDir, INDEX_FILE);
-            objectMapper
-                    .writerWithDefaultPrettyPrinter()
-                    .writeValue(f, new ArrayList<>(beanRegistry.values()));
-        } catch (IOException e) {
-            log.error("Failed to save bean index", e);
-        }
-    }
-
-    private void loadIndex() {
-        File f = new File(storageDir, INDEX_FILE);
-        if (!f.exists()) return;
-        try {
-            List<BeanInfo> list = objectMapper.readValue(f, new TypeReference<List<BeanInfo>>() {});
-            list.forEach(b -> beanRegistry.put(b.getId(), b));
-        } catch (IOException e) {
-            log.error("Failed to load bean index", e);
-        }
+    private BeanInfo toDto(BeanEntity entity) {
+        if (entity == null) return null;
+        BeanInfo info = new BeanInfo();
+        info.setId(entity.getId().toString());
+        info.setBeanName(entity.getBeanName());
+        info.setClassName(entity.getClassName());
+        info.setJarFileName(entity.getJarFileName());
+        info.setDescription(entity.getDescription());
+        info.setRegistered(entity.isRegistered());
+        info.setUploadedAt(entity.getUploadedAt());
+        info.setRegisteredAt(entity.getRegisteredAt());
+        return info;
     }
 }

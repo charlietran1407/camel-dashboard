@@ -1,0 +1,22 @@
+# metadata:
+#   camelVersion: 4.20.0
+#   description: "A beginner-friendly Camel route that watches a directory (/app/logs) for file events (CREATE, MODIFY, DELETE) and logs details."
+#   aiHints:
+#     component: "file-watch"
+#     path: "/app/logs"
+#     events: "CREATE,MODIFY,DELETE"
+#     routeId: "route-1749"
+
+- route:
+    from:
+      uri: file-watch
+      parameters:
+        path: /app/logs
+        events: CREATE,MODIFY,DELETE
+        useFileHashing: false
+      steps:
+        - log:
+            message: '"Detect event ${header.CamelFileEventType} on file
+              ${header.CamelFilePath}"'
+      id: from-3890
+    id: route-1749

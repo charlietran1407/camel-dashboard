@@ -1,0 +1,41 @@
+# metadata:
+#   camelVersion: 4.20.0
+#   description: "A beginner-friendly Camel route exposing a platform-http GET /hello endpoint returning a simple HTML page."
+#   aiHints:
+#     component: "platform-http"
+#     path: "/hello"
+#     method: "GET"
+#     responseType: "text/html"
+#     routeId: "httpHelloRoute"
+
+- route:
+    from:
+      uri: platform-http
+      parameters:
+        path: /hello
+      steps:
+        - setHeader:
+            id: setHeaderContentType
+            name: Content-Type
+            constant:
+              expression: text/html
+        - setHeader:
+            id: setHeaderHttpResponseCode
+            name: CamelHttpResponseCode
+            constant:
+              expression: "200"
+        - setBody:
+            id: setBodyHtml
+            constant:
+              expression: >
+                <html>
+                  <head>
+                  <meta charset="UTF-8" />
+                  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+                  <title>CamelDash</title>
+                </head>  <body> 
+                    <p>This is html from CamelDash</p>                                   
+                 </body> </html>
+      id: http
+    id: httpHelloRoute
+    description: This  response to HTML
