@@ -1,6 +1,6 @@
 services:
   camel-dashboard-node-1:
-    image: charlietran1407/camel-dashboard:latest
+    image: ghcr.io/charlietran1407/camel-dashboard:latest
     container_name: camel-dashboard-node-1
     ports:
       - "8080:8080"

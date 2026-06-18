@@ -16,6 +16,7 @@ monitor clusters, and let your AI assistant do the heavy lifting via native MCP 
 [![Redis](https://img.shields.io/badge/Redis-7-DC382D?style=flat-square&logo=redis)](https://redis.io/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=flat-square)](LICENSE)
 [![Status](https://img.shields.io/badge/status-active%20development-blue?style=flat-square)](https://github.com/charlietran1407/apache-camel-dashboard)
+[![Camel Dashboard CI/CD](https://github.com/charlietran1407/camel-dashboard/actions/workflows/docker-image.yml/badge.svg)](https://github.com/charlietran1407/camel-dashboard/actions/workflows/docker-image.yml)
 
 · [**📸 Screenshots**](#-screenshots) · [**🚀 Quick Start**](#-quick-start) · [**🤖 MCP Setup**](#-mcp--vibe-coding)
 
@@ -316,6 +317,22 @@ java -Dloader.path=libs -jar target/camel-dashboard-xxx.jar
 > **Note**: The `libs/` directory (by default `./libs` in the working directory) must be specified via `-Dloader.path` for dynamic driver and component loading to work.
 
 ### Docker
+
+**Option 1: Pull pre-built image from GitHub Container Registry**
+
+```bash
+# Latest stable (main branch)
+docker pull ghcr.io/charlietran1407/camel-dashboard:latest
+
+# Specific version
+docker pull ghcr.io/charlietran1407/camel-dashboard:1.2.9
+```
+
+```bash
+docker run -p 8080:8080 --env-file .env ghcr.io/charlietran1407/camel-dashboard:latest
+```
+
+**Option 2: Build locally**
 
 ```bash
 docker build -t camel-dashboard .
