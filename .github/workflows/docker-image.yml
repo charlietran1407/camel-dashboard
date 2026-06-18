@@ -2,21 +2,25 @@ name: Camel Dashboard CI/CD
 
 on:
   pull_request:
-    branches: [ "main" ]   # PR vào main → chỉ build/test
+    branches: [ "main" ]   
   push:
-    branches: [ "main" ]   # merge vào main → build/push latest
-    tags: [ "v*" ]         # release tag vX.Y.Z → build/push version
+    branches: [ "main" ]  
+    tags: [ "v*" ]
 
 jobs:
   docker:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Checkout code
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # 2. Login vào GHCR (chỉ khi push)
+      - name: Build & test for PR
+        if: github.event_name == 'pull_request'
+        run: |
+          docker build . --file Dockerfile --tag test-image:pr
+          docker run --rm test-image:pr echo "Container built OK"
+
       - name: Log in to GitHub Container Registry
         if: github.event_name == 'push'
         uses: docker/login-action@v2
@@ -25,7 +29,8 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build Docker image
+      - name: Build & push for push/tag
+        if: github.event_name == 'push'
         run: |
           IMAGE=ghcr.io/${{ github.repository }}
 
@@ -40,33 +45,7 @@ jobs:
 
           if [ "${{ github.ref_type }}" = "branch" ] && [ "${{ github.ref_name }}" = "main" ]; then
             docker tag $IMAGE:$VERSION $IMAGE:latest
-          fi
-
-      - name: Run tests in container
-        run: |
-          IMAGE=ghcr.io/${{ github.repository }}
-          if [ "${{ github.ref_type }}" = "tag" ]; then
-            RAW_VERSION=${{ github.ref_name }}
-            VERSION=${RAW_VERSION#v}
-          else
-            VERSION=${{ github.ref_name }}
-          fi
-          docker run --rm $IMAGE:$VERSION echo "Container started OK"
-
-      - name: Push Docker image
-        if: github.event_name == 'push'
-        run: |
-          IMAGE=ghcr.io/${{ github.repository }}
-          if [ "${{ github.ref_type }}" = "tag" ]; then
-            RAW_VERSION=${{ github.ref_name }}
-            VERSION=${RAW_VERSION#v}
-          else
-            VERSION=${{ github.ref_name }}
+            docker push $IMAGE:latest
           fi
 
           docker push $IMAGE:$VERSION
-
-          # Nếu push vào main thì push thêm latest
-          if [ "${{ github.ref_type }}" = "branch" ] && [ "${{ github.ref_name }}" = "main" ]; then
-            docker push $IMAGE:latest
-          fi
