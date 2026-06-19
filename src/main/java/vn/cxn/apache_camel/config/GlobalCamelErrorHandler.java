@@ -23,7 +23,7 @@ public class GlobalCamelErrorHandler extends RouteConfigurationBuilder {
         // Apply for ALL routes in CamelContext
         routeConfiguration()
                 .onException(Exception.class)
-                .handled(
+                .onWhen(
                         exchange -> {
                             org.apache.camel.Route route = exchange.getUnitOfWork().getRoute();
                             String endpointUri =
@@ -31,13 +31,11 @@ public class GlobalCamelErrorHandler extends RouteConfigurationBuilder {
                                             ? route.getEndpoint().getEndpointUri()
                                             : "";
 
-                            if (endpointUri.startsWith("rest:")
+                            return endpointUri.startsWith("rest:")
                                     || endpointUri.startsWith("platform-http:")
-                                    || endpointUri.startsWith("servlet:")) {
-                                return true;
-                            }
-                            return false;
+                                    || endpointUri.startsWith("servlet:");
                         })
+                .handled(true)
                 .process(this::injectTraceAndFormatError)
                 .log(
                         org.apache.camel.LoggingLevel.ERROR,

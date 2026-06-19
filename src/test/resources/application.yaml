@@ -81,3 +81,8 @@ otel:
     otlp:
       endpoint: http://localhost:4317
       protocol: grpc
+
+logging:
+  level:
+    org.apache.camel: WARN
+
