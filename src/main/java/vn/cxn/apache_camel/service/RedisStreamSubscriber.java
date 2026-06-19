@@ -1,7 +1,10 @@
 package vn.cxn.apache_camel.service;
 
 import jakarta.annotation.PostConstruct;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -87,90 +90,62 @@ public class RedisStreamSubscriber {
     }
 
     private void recoverAndCatchUp() {
-        try {
-            log.info(
-                    "RedisStreamSubscriber: Initiating cluster recovery and historical catch-up"
-                            + " flow...");
-            String instanceId = clusterNodeService.getInstanceId();
-            String checkpoint =
-                    (String) redisTemplate.opsForValue().get("cluster:checkpoint:" + instanceId);
+        log.info("RedisStreamSubscriber: Starting recovery thread...");
+        while (!Thread.currentThread().isInterrupted()) {
+            try {
+                String instanceId = clusterNodeService.getInstanceId();
+                if (instanceId == null) {
+                    Thread.sleep(1000);
+                    continue;
+                }
 
-            ReadOffset readOffset;
-            if (checkpoint == null || checkpoint.isBlank()) {
-                log.info(
-                        "RedisStreamSubscriber: No checkpoint found for node '{}'. Initializing"
-                                + " checkpoint to the latest stream event...",
-                        instanceId);
-                try {
-                    @SuppressWarnings("unchecked")
-                    List<MapRecord<String, Object, Object>> lastRecord =
-                            redisTemplate
-                                    .opsForStream()
-                                    .reverseRange(
-                                            streamKey,
-                                            Range.<String>unbounded(),
-                                            org.springframework.data.redis.connection.Limit.limit()
-                                                    .count(1));
-                    if (lastRecord != null && !lastRecord.isEmpty()) {
-                        String latestId = lastRecord.get(0).getId().getValue();
+                log.info("RedisStreamSubscriber: Initializing cluster subscriber checkpoint...");
+
+                // Get the latest event ID in the stream
+                String latestId = null;
+                List<MapRecord<String, Object, Object>> lastRecord =
                         redisTemplate
-                                .opsForValue()
-                                .set("cluster:checkpoint:" + instanceId, latestId);
-                        log.info(
-                                "RedisStreamSubscriber: Initialized checkpoint for node '{}' to"
-                                        + " latest event ID '{}'",
-                                instanceId,
-                                latestId);
-                        readOffset = ReadOffset.from(latestId);
-                    } else {
-                        log.info(
-                                "RedisStreamSubscriber: Stream '{}' is empty, starting from 0-0",
-                                streamKey);
-                        readOffset = ReadOffset.from("0-0");
-                    }
-                } catch (Exception e) {
-                    log.warn(
-                            "RedisStreamSubscriber: Failed to fetch latest stream record: {}."
-                                    + " Defaulting to 0-0",
-                            e.getMessage());
-                    readOffset = ReadOffset.from("0-0");
+                                .opsForStream()
+                                .reverseRange(
+                                        streamKey,
+                                        Range.<String>unbounded(),
+                                        org.springframework.data.redis.connection.Limit.limit()
+                                                .count(1));
+                if (lastRecord != null && !lastRecord.isEmpty()) {
+                    latestId = lastRecord.get(0).getId().getValue();
                 }
-            } else {
-                log.info(
-                        "RedisStreamSubscriber: Found checkpoint '{}' for node '{}'. Replaying"
-                                + " events after this offset...",
-                        checkpoint,
-                        instanceId);
-                readOffset = ReadOffset.from(checkpoint);
-            }
 
-            // Fetch all stream records after the offset
-            @SuppressWarnings("unchecked")
-            List<MapRecord<String, Object, Object>> records =
-                    redisTemplate.opsForStream().read(StreamOffset.create(streamKey, readOffset));
-
-            if (records != null && !records.isEmpty()) {
-                log.info(
-                        "RedisStreamSubscriber: Found {} historical event(s) to catch up",
-                        records.size());
-                for (MapRecord<String, Object, Object> record : records) {
-                    String eventId = record.getId().getValue();
-                    Map<Object, Object> eventMap = record.getValue();
-                    processRecord(eventId, eventMap, true);
+                if (latestId != null && !latestId.isBlank()) {
+                    redisTemplate.opsForValue().set("cluster:checkpoint:" + instanceId, latestId);
+                    log.info(
+                            "RedisStreamSubscriber: Initialized checkpoint for node '{}' to latest"
+                                    + " event ID '{}'",
+                            instanceId,
+                            latestId);
+                } else {
+                    redisTemplate.opsForValue().set("cluster:checkpoint:" + instanceId, "0-0");
+                    log.info(
+                            "RedisStreamSubscriber: Stream '{}' is empty. Initialized checkpoint"
+                                    + " for node '{}' to '0-0'",
+                            streamKey,
+                            instanceId);
                 }
                 log.info(
-                        "RedisStreamSubscriber: Replayed all {} historical event(s) successfully.",
-                        records.size());
-            } else {
-                log.info(
-                        "RedisStreamSubscriber: No historical events found. Node is fully caught up"
-                                + " with the cluster.");
+                        "RedisStreamSubscriber: Startup checkpoint initialization complete. Node is"
+                                + " ready for real-time listening.");
+                break; // Successfully initialized, exit the loop
+            } catch (Exception e) {
+                log.warn(
+                        "RedisStreamSubscriber: Startup checkpoint initialization failed (Redis"
+                                + " might be offline). Retrying in 5 seconds... Error: {}",
+                        e.getMessage());
+                try {
+                    Thread.sleep(5000);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
             }
-            log.info(
-                    "RedisStreamSubscriber: Recovery flow complete. Successfully transitioned to"
-                            + " real-time listening mode.");
-        } catch (Exception e) {
-            log.error("RedisStreamSubscriber: Recovery flow failed", e);
         }
     }
 
@@ -191,20 +166,32 @@ public class RedisStreamSubscriber {
                 return;
             }
 
-            // Fetch the specific event details from the stream
+            // Fetch the stream records from the checkpoint to catch up
+            ReadOffset readOffset =
+                    checkpoint != null ? ReadOffset.from(checkpoint) : ReadOffset.from("0-0");
+            @SuppressWarnings("unchecked")
             List<MapRecord<String, Object, Object>> records =
-                    redisTemplate.opsForStream().range(streamKey, Range.closed(eventId, eventId));
+                    redisTemplate.opsForStream().read(StreamOffset.create(streamKey, readOffset));
 
             if (records == null || records.isEmpty()) {
                 log.warn(
-                        "RedisStreamSubscriber: Event alert received for '{}', but no record was"
+                        "RedisStreamSubscriber: Event alert received for '{}', but no records were"
                                 + " found in the stream.",
                         eventId);
                 return;
             }
 
-            MapRecord<String, Object, Object> record = records.get(0);
-            processRecord(record.getId().getValue(), record.getValue(), false);
+            // Consolidate/Deduplicate records
+            List<MapRecord<String, Object, Object>> consolidated = consolidateRecords(records);
+
+            log.info(
+                    "RedisStreamSubscriber: Replaying {} consolidated event(s) to catch up",
+                    consolidated.size());
+            for (MapRecord<String, Object, Object> record : consolidated) {
+                String recId = record.getId().getValue();
+                Map<Object, Object> eventMap = record.getValue();
+                processRecord(recId, eventMap, false);
+            }
 
         } catch (Exception e) {
             log.error(
@@ -212,6 +199,39 @@ public class RedisStreamSubscriber {
                     eventId,
                     e);
         }
+    }
+
+    List<MapRecord<String, Object, Object>> consolidateRecords(
+            List<MapRecord<String, Object, Object>> records) {
+        if (records == null || records.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // targetId -> latest recordId value
+        Map<String, String> latestEventMap = new HashMap<>();
+        for (MapRecord<String, Object, Object> record : records) {
+            String eventId = record.getId().getValue();
+            String targetId = (String) record.getValue().get("targetId");
+            if (targetId != null) {
+                latestEventMap.put(targetId, eventId);
+            }
+        }
+
+        // Keep only records that are the latest for their targetId, or have no targetId
+        List<MapRecord<String, Object, Object>> consolidated = new ArrayList<>();
+        for (MapRecord<String, Object, Object> record : records) {
+            String eventId = record.getId().getValue();
+            String targetId = (String) record.getValue().get("targetId");
+            if (targetId == null || eventId.equals(latestEventMap.get(targetId))) {
+                consolidated.add(record);
+            }
+        }
+
+        log.info(
+                "RedisStreamSubscriber: Consolidated {} event(s) down to {} event(s).",
+                records.size(),
+                consolidated.size());
+        return consolidated;
     }
 
     private void processRecord(String eventId, Map<Object, Object> eventMap, boolean isRecovery) {

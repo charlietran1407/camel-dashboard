@@ -237,6 +237,26 @@ class RouteIdManager {
         if (node instanceof Map<?, ?> map) {
             Map<Object, Object> mutableMap = (Map<Object, Object>) map;
 
+            // Handle split-form internal endpoints: uri: direct/seda/vm + parameters.name
+            if (mutableMap.containsKey("uri") && mutableMap.containsKey("parameters")) {
+                Object uriVal = mutableMap.get("uri");
+                Object paramsVal = mutableMap.get("parameters");
+                if (uriVal instanceof String uriStr && paramsVal instanceof Map<?, ?> paramsMap) {
+                    String cleanUri = uriStr.trim();
+                    if ("direct".equals(cleanUri)
+                            || "seda".equals(cleanUri)
+                            || "vm".equals(cleanUri)) {
+                        Map<Object, Object> mutableParams = (Map<Object, Object>) paramsMap;
+                        if (mutableParams.containsKey("name")) {
+                            Object nameVal = mutableParams.get("name");
+                            if (nameVal instanceof String nameStr && !nameStr.startsWith(prefix)) {
+                                mutableParams.put("name", prefix + nameStr);
+                            }
+                        }
+                    }
+                }
+            }
+
             rewriteProperty(mutableMap, "id", routeIdMapping);
             rewriteProperty(mutableMap, "routeId", routeIdMapping);
             rewriteProperty(mutableMap, "apiContextRouteId", routeIdMapping);
@@ -249,7 +269,9 @@ class RouteIdManager {
                             if ("uri".equals(keyStr)
                                     || "to".equals(keyStr)
                                     || "toD".equals(keyStr)
-                                    || "deadLetterUri".equals(keyStr)) {
+                                    || "deadLetterUri".equals(keyStr)
+                                    || "compensation".equals(keyStr)
+                                    || "completion".equals(keyStr)) {
                                 mutableMap.put(
                                         key, CamelYamlUtils.rewriteInternalUri(strVal, prefix));
                             }

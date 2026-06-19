@@ -19,6 +19,8 @@ spring:
       host: localhost
       port: 6379
       password:
+      timeout: 1000ms
+      connect-timeout: 1000ms
   datasource:
     url: jdbc:postgresql://localhost:5432/cameldashdev?options=-c%20timezone=UTC
     username: cameldash
@@ -87,7 +89,7 @@ camel:
       instance-id: localhost:8080
       group: dev
       heartbeat-interval-ms: 10000 # send heartbeat every 10 seconds
-      enabled: false
+      enabled: true
       stream-key: "${camel.dashboard.cluster.group}:cluster:event:stream"
       channel: "${camel.dashboard.cluster.group}:cluster:event:channel"
       node-key-prefix: "${camel.dashboard.cluster.group}:cluster:node:"
@@ -114,3 +116,8 @@ app:
       connection-timeout: 20000
       idle-timeout: 60000
       max-lifetime: 1800000
+
+logging:
+  level:
+    org.apache.camel: WARN
+

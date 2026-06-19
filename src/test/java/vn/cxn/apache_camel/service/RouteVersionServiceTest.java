@@ -139,6 +139,72 @@ class RouteVersionServiceTest {
     }
 
     @Test
+    void rewritesSplitFormInternalEndpointsInYaml() throws Exception {
+        RouteVersionService service = newService();
+        String yaml =
+                """
+                - route:
+                    id: route-split-form
+                    from:
+                      uri: direct
+                      parameters:
+                        name: start-endpoint
+                      steps:
+                        - to:
+                            uri: direct
+                            parameters:
+                              name: next-endpoint
+                """;
+
+        RouteVersion version =
+                service.uploadRoute(
+                        "5e5ae536-07cb-4433-98af-ed4cda2fe966", "test-split.camel.yaml", yaml, "");
+
+        String deploymentContent = service.getDeploymentContent(version);
+
+        // Assert that the split-form parameters.name gets successfully prefixed
+        assertThat(deploymentContent)
+                .contains("name: svc_5e5ae536-07cb-4433-98af-ed4cda2fe966__start-endpoint");
+        assertThat(deploymentContent)
+                .contains("name: svc_5e5ae536-07cb-4433-98af-ed4cda2fe966__next-endpoint");
+    }
+
+    @Test
+    void rewritesSagaEipEndpointsInYaml() throws Exception {
+        RouteVersionService service = newService();
+        String yaml =
+                """
+                - route:
+                    id: route-saga
+                    from:
+                      uri: direct
+                      parameters:
+                        name: chargeFee
+                      steps:
+                        - saga:
+                            id: saga-123
+                            compensation: "direct:refundFee"
+                            completion: "direct:completeOrder"
+                """;
+
+        RouteVersion version =
+                service.uploadRoute(
+                        "5e5ae536-07cb-4433-98af-ed4cda2fe966", "test-saga.camel.yaml", yaml, "");
+
+        String deploymentContent = service.getDeploymentContent(version);
+
+        // Both compensation and completion URIs should be rewritten with service prefix
+        assertThat(deploymentContent)
+                .contains(
+                        "compensation:"
+                                + " 'direct:svc_5e5ae536-07cb-4433-98af-ed4cda2fe966__refundFee'");
+        assertThat(deploymentContent)
+                .contains(
+                        "completion:"
+                            + " 'direct:svc_5e5ae536-07cb-4433-98af-ed4cda2fe966__completeOrder'");
+    }
+
+    @Test
     void ensureRouteIdsDoesNotGenerateRedundantIdForNestedFrom() {
         YamlRouteDocumentStrategyImpl strategy = new YamlRouteDocumentStrategyImpl();
         String yaml =
