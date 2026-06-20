@@ -18,7 +18,7 @@ monitor clusters, and let your AI assistant do the heavy lifting via native MCP 
 [![Status](https://img.shields.io/badge/status-active%20development-blue?style=flat-square)](https://github.com/charlietran1407/apache-camel-dashboard)
 [![Camel Dashboard CI/CD](https://github.com/charlietran1407/camel-dashboard/actions/workflows/docker-image.yml/badge.svg)](https://github.com/charlietran1407/camel-dashboard/actions/workflows/docker-image.yml)
 
-· [**📸 Screenshots**](#-screenshots) · [**🚀 Quick Start**](#-quick-start) · [**🤖 MCP Setup**](#-mcp--vibe-coding)
+· [**📸 Screenshots & Demo**](#-screenshots--demo) · [**🚀 Quick Start**](#-quick-start) · [**🤖 MCP Setup**](#-mcp--vibe-coding)
 
 </div>
 
@@ -40,11 +40,13 @@ Camel Dashboard is a platform for managing Apache Camel routes. Instead of writi
 
 ---
 
-## 📸 Screenshots
+## 📸 Screenshots & Demo
 
-| Routes View |
-|---|
-| ![Routes](docs/screenshot_routes.png)
+### Demo
+![Demo](./docs/demo.gif)
+
+### Routes View
+![Routes](./docs/screenshot_routes.png)
 
 ---
 
