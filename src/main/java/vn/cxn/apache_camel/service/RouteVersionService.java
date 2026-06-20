@@ -3,7 +3,6 @@ package vn.cxn.apache_camel.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
-import java.nio.file.*;
 import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;

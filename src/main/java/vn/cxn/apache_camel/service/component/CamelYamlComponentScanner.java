@@ -34,6 +34,8 @@ public class CamelYamlComponentScanner {
 
         DefaultCamelContext context = new DefaultCamelContext();
         context.setAutowiredEnabled(false);
+        context.setClassResolver(
+                new ScanningClassResolver(context.getClassResolver(), schemes, dataFormats));
         try {
             // 1. Intercept component resolution to capture schemes
             context.getCamelContextExtension()
@@ -128,7 +130,9 @@ public class CamelYamlComponentScanner {
                             org.apache.camel.spi.DataFormatResolver.class,
                             (name, camelContext) -> {
                                 dataFormats.add(name);
-                                return new org.apache.camel.spi.DataFormat() {
+                                class MockDataFormat
+                                        implements org.apache.camel.spi.DataFormat,
+                                                org.apache.camel.spi.PropertyConfigurerAware {
                                     @Override
                                     public void marshal(
                                             org.apache.camel.Exchange exchange,
@@ -147,7 +151,18 @@ public class CamelYamlComponentScanner {
 
                                     @Override
                                     public void stop() {}
-                                };
+
+                                    @Override
+                                    public org.apache.camel.spi.PropertyConfigurer
+                                            getPropertyConfigurer(Object instance) {
+                                        return (org.apache.camel.CamelContext context1,
+                                                Object target,
+                                                String propName,
+                                                Object value,
+                                                boolean ignoreCase) -> true;
+                                    }
+                                }
+                                return new MockDataFormat();
                             });
 
             // Load routes from YAML

@@ -401,6 +401,7 @@ class RouteVersionServiceTest {
                 .contains("rest:/api/v2/api-doc", "rest:/api/v2/users", "rest:/api/v2/users/{id}");
     }
 
+    @SuppressWarnings("unchecked")
     @Test
     void getActiveVersionByRouteIdRetrievesActiveVersionFromRouteEntity() throws Exception {
         vn.cxn.apache_camel.repository.RouteRepository routeRepo =
@@ -465,6 +466,7 @@ class RouteVersionServiceTest {
         assertThat(activeOpt.get().getFileName()).isEqualTo("test-route.camel.yaml");
     }
 
+    @SuppressWarnings("unchecked")
     @Test
     void getActiveVersionByRouteIdReturnsEmptyWhenRouteNotFound() throws Exception {
         vn.cxn.apache_camel.repository.RouteRepository routeRepo =
@@ -508,6 +510,7 @@ class RouteVersionServiceTest {
         assertThat(activeOpt).isEmpty();
     }
 
+    @SuppressWarnings("unchecked")
     private RouteVersionService newService() {
         vn.cxn.apache_camel.repository.ServiceRepository serviceRepo =
                 org.mockito.Mockito.mock(vn.cxn.apache_camel.repository.ServiceRepository.class);
@@ -649,12 +652,8 @@ class RouteVersionServiceTest {
         assertThat(service.getActiveOrSpecifiedVersion("empty-service", null)).isEmpty();
 
         // 2. upload multiple versions
-        RouteVersion v1 =
-                service.uploadRoute("test-service", "route1.yaml", "- from: timer:tick1", "v1");
         RouteVersion v2 =
                 service.uploadRoute("test-service", "route2.yaml", "- from: timer:tick2", "v2");
-        RouteVersion v3 =
-                service.uploadRoute("test-service", "route3.yaml", "- from: timer:tick3", "v3");
 
         // 3. fetch specified version
         java.util.Optional<RouteVersion> found =
@@ -662,7 +661,8 @@ class RouteVersionServiceTest {
         assertThat(found).isPresent();
         assertThat(found.get().getVersion()).isEqualTo(2);
 
-        // 4. default falls back to latest version (v3) since none is active/auto-restore
+        // 4. default falls back to latest version (v3) since none is
+        // active/auto-restore
         java.util.Optional<RouteVersion> activeFallback =
                 service.getActiveOrSpecifiedVersion("test-service", null);
         assertThat(activeFallback).isPresent();

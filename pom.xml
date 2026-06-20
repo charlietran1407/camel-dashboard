@@ -11,7 +11,7 @@
 	</parent>
 	<groupId>vn.cxn</groupId>
 	<artifactId>camel-dashboard</artifactId>
-	<version>1.2.10</version>
+	<version>1.2.11</version>
 	<name>Camel Dashboard</name>
 	<description>A dashboard for managing Apache Camel routes.</description>
 	<url />

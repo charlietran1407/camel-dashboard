@@ -20,6 +20,7 @@ class RedisStreamSubscriberTest {
     private RedisMessageListenerContainer redisMessageListenerContainer;
     private List<ClusterRouteCommand> routeCommands;
 
+    @SuppressWarnings("unchecked")
     @BeforeEach
     void setUp() {
         clusterNodeService = mock(ClusterNodeService.class);
