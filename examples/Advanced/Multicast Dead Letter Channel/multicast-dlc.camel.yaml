@@ -1,0 +1,160 @@
+# metadata:
+#   camelVersion: 4.20.0
+#   description: "Advanced example: A notification dispatcher that receives an event via REST and multicasts it to Email, SMS, and Webhook channels in parallel. Failed channels are redirected to a Dead Letter Channel (DLC) queue for offline retry."
+#   aiHints:
+#     component: "rest, direct, log, multicast, deadLetterChannel"
+#     path: "/notify"
+#     method: "POST"
+#     routeId: "notify-dispatcher"
+
+# ─────────────────────────────────────────────────────────
+# REST entry point: POST /notify
+# Body JSON: { "userId": "u123", "event": "ORDER_PLACED", "message": "Your order #456 has been placed." }
+# ─────────────────────────────────────────────────────────
+- rest:
+    id: rest-notify
+    path: /notify
+    post:
+      - id: post-notify
+        consumes: application/json
+        produces: application/json
+        to:
+          uri: direct
+          parameters:
+            name: notify-entry
+- route:
+    id: notify-dispatcher
+    errorHandler:
+      deadLetterChannel:
+        deadLetterUri: direct:notify-dlc
+        useOriginalMessage: true
+        redeliveryPolicy:
+          maximumRedeliveries: 3
+          redeliveryDelay: "2000"
+          logHandled: true
+          logRetryAttempted: true
+    from:
+      id: from-notify-entry
+      uri: direct
+      parameters:
+        name: notify-entry
+      steps:
+        - log:
+            id: log-dispatch-start
+            message: "[DISPATCHER] Received event '${body}' — multicasting to all channels"
+        - multicast:
+            id: multicast-channels
+            parallelProcessing: true
+            stopOnException: false
+            steps:
+              - to:
+                  id: to-email-channel
+                  uri: direct:channel-email
+                  parameters: {}
+              - to:
+                  id: to-sms-channel
+                  uri: direct:channel-sms
+                  parameters: {}
+              - to:
+                  id: to-webhook-channel
+                  uri: direct:channel-webhook
+                  parameters: {}
+        - setHeader:
+            id: set-response-code
+            name: CamelHttpResponseCode
+            constant:
+              expression: "200"
+        - setBody:
+            id: set-response-body
+            constant:
+              expression: '{"status":"dispatched","channels":["email","sms","webhook"]}'
+- route:
+    id: route-channel-email
+    from:
+      id: from-channel-email
+      uri: direct
+      parameters:
+        name: channel-email
+      steps:
+        - filter:
+            id: filter-email-fail
+            expression:
+              simple:
+                expression: ${random(10)} < 3
+            steps:
+              - throwException:
+                  id: throw-email-error
+                  exceptionType: java.io.IOException
+                  message: Email server timeout — channel unavailable
+        - log:
+            id: log-email-sent
+            message: "[EMAIL] ✅ Notification sent to user via email. Body: ${body}"
+- route:
+    id: route-channel-sms
+    from:
+      id: from-channel-sms
+      uri: direct
+      parameters:
+        name: channel-sms
+      steps:
+        - filter:
+            id: filter-sms-fail
+            expression:
+              simple:
+                expression: ${random(10)} < 2
+            steps:
+              - throwException:
+                  id: throw-sms-error
+                  exceptionType: java.net.ConnectException
+                  message: SMS gateway connection refused
+        - log:
+            id: log-sms-sent
+            message: "[SMS] ✅ Notification sent to user via SMS. Body: ${body}"
+- route:
+    id: route-channel-webhook
+    from:
+      id: from-channel-webhook
+      uri: direct
+      parameters:
+        name: channel-webhook
+      steps:
+        - log:
+            id: log-webhook-sent
+            message: "[WEBHOOK] ✅ Notification pushed to webhook endpoint. Body: ${body}"
+- route:
+    id: route-dlc-handler
+    from:
+      id: from-notify-dlc
+      uri: direct
+      parameters:
+        name: notify-dlc
+      steps:
+        - log:
+            id: log-dlc-received
+            message:
+              "[DLC] ❌ Channel failed after retries. Storing failed message for
+              manual review. Cause: ${exception.message} | Body: ${body}"
+        - setHeader:
+            id: dlc-set-dlq-status
+            name: X-DLC-Status
+            constant:
+              expression: FAILED
+        - setHeader:
+            id: dlc-set-dlq-cause
+            name: X-DLC-Cause
+            simple:
+              expression: ${exception.message}
+        - log:
+            id: log-dlc-done
+            message: "[DLC] Message archived. Requires manual retry or alerting."
+- route:
+    id: route-1411
+    from:
+      id: from-1492
+      uri: direct
+      parameters:
+        name: demo
+      steps:
+        - log:
+            id: log-1471
+            message: ${body}
