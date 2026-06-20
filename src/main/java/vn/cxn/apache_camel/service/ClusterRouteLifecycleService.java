@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
+import org.springframework.data.redis.connection.RedisStreamCommands.XAddOptions;
 import org.springframework.data.redis.connection.stream.MapRecord;
 import org.springframework.data.redis.connection.stream.RecordId;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -119,7 +120,9 @@ public class ClusterRouteLifecycleService implements RouteLifecycleService {
             }
 
             RecordId recordId =
-                    redisTemplate.opsForStream().add(MapRecord.create(streamKey, eventMap));
+                    redisTemplate
+                            .opsForStream()
+                            .add(MapRecord.create(streamKey, eventMap), XAddOptions.maxlen(1000L));
 
             if (recordId != null) {
                 String eventId = recordId.getValue();

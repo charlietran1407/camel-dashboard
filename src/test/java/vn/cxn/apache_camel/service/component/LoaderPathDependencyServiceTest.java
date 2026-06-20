@@ -225,4 +225,46 @@ class LoaderPathDependencyServiceTest {
             assertThat(missingCoords).contains("org.apache.camel:camel-caffeine:4.20.0");
         }
     }
+
+    @Test
+    void testScanningClassResolverDirectly() {
+        java.util.Set<String> schemes = new java.util.LinkedHashSet<>();
+        java.util.Set<String> dataFormats = new java.util.LinkedHashSet<>();
+        org.apache.camel.spi.ClassResolver delegate =
+                new org.apache.camel.impl.engine.DefaultClassResolver();
+        ScanningClassResolver resolver = new ScanningClassResolver(delegate, schemes, dataFormats);
+
+        // Resolve a non-existent Camel dataformat class
+        Class<?> clazz =
+                resolver.resolveClass("org.apache.camel.dataformat.barcode.BarcodeDataFormat");
+        assertThat(clazz).isEqualTo(ScanningClassResolver.DummyDataFormat.class);
+        assertThat(dataFormats).contains("barcode");
+
+        // Resolve a non-existent Camel component class
+        Class<?> clazz2 =
+                resolver.resolveClass(
+                        "org.apache.camel.component.caffeine.cache.CaffeineCacheComponent");
+        assertThat(clazz2).isEqualTo(ScanningClassResolver.DummyComponent.class);
+        assertThat(schemes).contains("caffeine");
+    }
+
+    @Test
+    void testEnsureComponentsAvailable_Barcode() throws IOException {
+        String yamlContent =
+                Files.readString(
+                        Path.of(
+                                "d:/Projects/apache-camel/GitHub/camel-dashboard-examples/Beginner/Barcode/barcode.camel.yaml"));
+        ScanResult scanResult = scanner.scan(yamlContent);
+        System.out.println("BARCODE SCAN SCHEMES: " + scanResult.schemes());
+        System.out.println("BARCODE SCAN DATAFORMATS: " + scanResult.dataFormats());
+        System.out.println("BARCODE SCAN LANGUAGES: " + scanResult.languages());
+        assertThat(scanResult.dataFormats()).contains("barcode");
+
+        // Verify coordinates mapper resolves the missing dependency for barcode
+        List<String> missingCoords = mapper.resolveMissingCoordinates(scanResult);
+        System.out.println("BARCODE MISSING COORDS: " + missingCoords);
+
+        // Since camel-barcode is NOT on the classpath, it must be in the missing coordinates.
+        assertThat(missingCoords).anyMatch(coord -> coord.contains("camel-barcode"));
+    }
 }

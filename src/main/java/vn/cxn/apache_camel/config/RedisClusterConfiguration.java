@@ -39,6 +39,7 @@ public class RedisClusterConfiguration {
             RedisConnectionFactory connectionFactory) {
         RedisMessageListenerContainer container = new RedisMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
+        container.setAutoStartup(false);
         return container;
     }
 }

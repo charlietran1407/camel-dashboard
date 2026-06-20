@@ -74,10 +74,22 @@ public class RedisClusterNodeService implements ClusterNodeService {
         try {
             this.startedAt = Instant.now();
             resolveNodeIdentity();
-            registerNode();
-            configureKeyspaceNotifications();
-            registerKeyspaceListeners();
+        } catch (Exception e) {
+            log.error("RedisClusterNodeService: Failed to resolve node identity", e);
+            return;
+        }
 
+        // Register keyspace listeners locally (does not connect to Redis)
+        try {
+            registerKeyspaceListeners();
+        } catch (Exception e) {
+            log.error("RedisClusterNodeService: Failed to register keyspace listeners locally", e);
+        }
+
+        // Attempt initial connection actions gracefully (will retry via heartbeat if Redis is down)
+        try {
+            configureKeyspaceNotifications();
+            registerNode();
             log.info(
                     "RedisClusterNodeService: Registered node '{}' ({}:{}) as ONLINE in group '{}'",
                     instanceId,
@@ -85,7 +97,10 @@ public class RedisClusterNodeService implements ClusterNodeService {
                     serverPort,
                     properties.getGroup());
         } catch (Exception e) {
-            log.error("RedisClusterNodeService: Failed to initialize Redis cluster node", e);
+            log.warn(
+                    "RedisClusterNodeService: Failed to initialize Redis connection on startup"
+                            + " (will retry via heartbeat): {}",
+                    e.getMessage());
         }
     }
 
@@ -183,13 +198,32 @@ public class RedisClusterNodeService implements ClusterNodeService {
     @Scheduled(fixedRateString = "${camel.dashboard.cluster.heartbeat-interval-ms:3000}")
     public void heartbeat() {
         try {
+            // If the listener container is not running, try to start it
+            if (!redisMessageListenerContainer.isRunning()) {
+                try {
+                    log.info(
+                            "RedisClusterNodeService: RedisMessageListenerContainer is not running."
+                                    + " Attempting to start...");
+                    configureKeyspaceNotifications();
+                    redisMessageListenerContainer.start();
+                    log.info(
+                            "RedisClusterNodeService: RedisMessageListenerContainer started"
+                                    + " successfully.");
+                } catch (Exception e) {
+                    log.warn(
+                            "RedisClusterNodeService: Failed to start RedisMessageListenerContainer"
+                                    + " (Redis might be offline): {}",
+                            e.getMessage());
+                }
+            }
+
             registerNode();
             updateLocalRouteStates();
             log.debug(
                     "RedisClusterNodeService: Renewed heartbeat and route states for node '{}'",
                     instanceId);
         } catch (Exception e) {
-            log.error("RedisClusterNodeService: Heartbeat renewal failed", e);
+            log.error("RedisClusterNodeService: Heartbeat renewal failed: {}", e.getMessage());
         }
     }
 

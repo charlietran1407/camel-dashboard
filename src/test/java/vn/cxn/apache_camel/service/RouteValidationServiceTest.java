@@ -22,6 +22,7 @@ class RouteValidationServiceTest {
     private DynamicBeanService dynamicBeanService;
     private EnvPropertyService envPropertyService;
 
+    @SuppressWarnings("unchecked")
     @BeforeEach
     void setUp() {
         mainCamelContext = new DefaultCamelContext();

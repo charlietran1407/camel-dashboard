@@ -3,13 +3,13 @@ package vn.cxn.apache_camel.service;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PostConstruct;
 import java.io.IOException;
-import java.nio.file.*;
 import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.connection.RedisStreamCommands.XAddOptions;
 import org.springframework.data.redis.connection.stream.MapRecord;
 import org.springframework.data.redis.connection.stream.RecordId;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -427,7 +427,9 @@ public class RouteVersionService {
             eventMap.put("meta_fileName", fileNameSnapshot);
 
             RecordId recordId =
-                    redisTemplate.opsForStream().add(MapRecord.create(streamKey, eventMap));
+                    redisTemplate
+                            .opsForStream()
+                            .add(MapRecord.create(streamKey, eventMap), XAddOptions.maxlen(1000L));
 
             if (recordId != null) {
                 String eventId = recordId.getValue();
