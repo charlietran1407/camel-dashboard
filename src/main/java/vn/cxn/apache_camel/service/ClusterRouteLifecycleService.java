@@ -13,6 +13,7 @@ import org.springframework.data.redis.connection.stream.MapRecord;
 import org.springframework.data.redis.connection.stream.RecordId;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
+import vn.cxn.apache_camel.config.RedisClusterProperties;
 import vn.cxn.apache_camel.model.enums.ClusterEventType;
 
 @Service
@@ -24,6 +25,7 @@ public class ClusterRouteLifecycleService implements RouteLifecycleService {
     private final CamelRouteService delegate;
     private final ClusterNodeService clusterNodeService;
     private final ObjectProvider<RedisTemplate<String, Object>> redisTemplateProvider;
+    private final RedisClusterProperties properties;
 
     @Value("${camel.dashboard.cluster.stream-key:cluster:event:stream}")
     private String streamKey;
@@ -34,10 +36,12 @@ public class ClusterRouteLifecycleService implements RouteLifecycleService {
     public ClusterRouteLifecycleService(
             CamelRouteService delegate,
             ClusterNodeService clusterNodeService,
-            ObjectProvider<RedisTemplate<String, Object>> redisTemplateProvider) {
+            ObjectProvider<RedisTemplate<String, Object>> redisTemplateProvider,
+            RedisClusterProperties properties) {
         this.delegate = delegate;
         this.clusterNodeService = clusterNodeService;
         this.redisTemplateProvider = redisTemplateProvider;
+        this.properties = properties;
     }
 
     @Override
@@ -136,7 +140,7 @@ public class ClusterRouteLifecycleService implements RouteLifecycleService {
                 redisTemplate.convertAndSend(channel, eventId);
 
                 // Checkpoint own executed message
-                redisTemplate.opsForValue().set("cluster:checkpoint:" + instanceId, eventId);
+                redisTemplate.opsForValue().set(properties.checkpointKey(instanceId), eventId);
             }
         } catch (Exception e) {
             log.error(

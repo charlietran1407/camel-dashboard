@@ -2,8 +2,11 @@ package vn.cxn.apache_camel.service;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
@@ -18,16 +21,22 @@ public class RouteAutoRestoreService {
     private final RouteVersionService versionService;
     private final org.apache.camel.CamelContext camelContext;
     private final io.opentelemetry.api.trace.Tracer tracer;
+    private final long restoreDelayMs;
+    private final Executor taskExecutor;
 
     public RouteAutoRestoreService(
             CamelRouteService camelRouteService,
             RouteVersionService versionService,
             org.apache.camel.CamelContext camelContext,
-            io.opentelemetry.api.trace.Tracer tracer) {
+            io.opentelemetry.api.trace.Tracer tracer,
+            @Value("${route.restore.delay-ms:2000}") long restoreDelayMs,
+            @Qualifier("applicationTaskExecutor") Executor taskExecutor) {
         this.camelRouteService = camelRouteService;
         this.versionService = versionService;
         this.camelContext = camelContext;
         this.tracer = tracer;
+        this.restoreDelayMs = restoreDelayMs;
+        this.taskExecutor = taskExecutor;
     }
 
     /**
@@ -38,13 +47,17 @@ public class RouteAutoRestoreService {
     public void restoreActiveRoutes() {
         CompletableFuture.runAsync(
                 () -> {
-                    try {
-                        // Delay 2 seconds to ensure all system components are stable
-                        Thread.sleep(2000);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        log.warn("Restore active routes delayed execution was interrupted");
-                        return;
+                    if (restoreDelayMs > 0) {
+                        try {
+                            // Delay to ensure all system components are stable
+                            Thread.sleep(restoreDelayMs);
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            log.warn(
+                                    "[Route-Restore] DelayedExecution - Interrupted - Restore"
+                                            + " active routes was interrupted");
+                            return;
+                        }
                     }
 
                     List<RouteVersion> allVersions = versionService.getAllVersions();
@@ -55,14 +68,7 @@ public class RouteAutoRestoreService {
                     allVersions.forEach(
                             v -> {
                                 if (v.isAutoRestore()) {
-                                    String groupKey = v.getServiceId();
-                                    if (groupKey == null) {
-                                        groupKey =
-                                                (v.getRouteIds() != null
-                                                                && !v.getRouteIds().isEmpty())
-                                                        ? v.getRouteIds().get(0)
-                                                        : v.getFileName();
-                                    }
+                                    String groupKey = getGroupKey(v);
                                     activeByGroup.merge(
                                             groupKey,
                                             v,
@@ -74,11 +80,16 @@ public class RouteAutoRestoreService {
                             });
 
                     if (activeByGroup.isEmpty()) {
-                        log.info("No persisted auto-restore services/routes to restore.");
+                        log.info(
+                                "[Route-Restore] Restore - Skip - No persisted auto-restore"
+                                        + " services/routes to restore.");
                         return;
                     }
 
-                    log.info("Restoring {} persisted active version(s)...", activeByGroup.size());
+                    log.info(
+                            "[Route-Restore] Restore - Start - Restoring {} persisted active"
+                                    + " version(s)...",
+                            activeByGroup.size());
                     List<RouteVersion> restoredVersions = new ArrayList<>();
 
                     io.opentelemetry.api.trace.Span span =
@@ -93,15 +104,16 @@ public class RouteAutoRestoreService {
                                                         ? version.getServiceId()
                                                         : version.getFileName();
 
-                                        // Skip if any route from this version is already in context
-                                        // (basic check)
+                                        // Skip if any route from this version is already in
+                                        // context (basic check)
                                         if (version.getRouteIds() != null
                                                 && !version.getRouteIds().isEmpty()) {
                                             String firstId = version.getRouteIds().get(0);
                                             if (camelContext.getRoute(firstId) != null) {
                                                 log.info(
-                                                        "Service/Route group '{}' already in"
-                                                                + " context, skipping restore.",
+                                                        "[Route-Restore] Restore - Skip -"
+                                                            + " Service/Route group '{}' already in"
+                                                            + " context, skipping restore.",
                                                         identifier);
                                                 return;
                                             }
@@ -111,12 +123,14 @@ public class RouteAutoRestoreService {
                                                 version, restoredVersions);
                                         restoredVersions.add(version);
                                         log.info(
-                                                "  ✓ Restored group '{}' (v{})",
+                                                "[Route-Restore] Restore - Success - Restored"
+                                                        + " group '{}' (v{})",
                                                 identifier,
                                                 version.getVersion());
                                     } catch (Exception e) {
                                         log.error(
-                                                "  ✗ Failed to restore version '{}': {}",
+                                                "[Route-Restore] Restore - Failed - Failed to"
+                                                        + " restore version '{}': {}",
                                                 version.getId(),
                                                 e.getMessage());
                                         span.recordException(e);
@@ -128,9 +142,12 @@ public class RouteAutoRestoreService {
                                                         + e.getMessage());
                                     }
                                 });
-                        log.info("Route restore complete.");
+                        log.info("[Route-Restore] Restore - Success - Route restore complete.");
                     } catch (Throwable t) {
-                        log.error("Fatal error during route auto-restoration process", t);
+                        log.error(
+                                "[Route-Restore] Restore - Failed - Fatal error during route"
+                                        + " auto-restoration process",
+                                t);
                         span.recordException(t);
                         span.setStatus(
                                 io.opentelemetry.api.trace.StatusCode.ERROR,
@@ -138,6 +155,17 @@ public class RouteAutoRestoreService {
                     } finally {
                         span.end();
                     }
-                });
+                },
+                taskExecutor);
+    }
+
+    private String getGroupKey(RouteVersion v) {
+        if (v.getServiceId() != null) {
+            return v.getServiceId();
+        }
+        if (v.getRouteIds() != null && !v.getRouteIds().isEmpty()) {
+            return v.getRouteIds().get(0);
+        }
+        return v.getFileName();
     }
 }

@@ -1,3 +1,4 @@
+# camel-dashboard: dependency=dev.langchain4j:langchain4j-google-ai-gemini:1.16.1,org.apache.camel:camel-langchain4j:4.20.0
 - rest:
     id: rest-chat
     path: /chat
@@ -22,7 +23,7 @@
 - beans:
     - name: myChatModel
       type: dev.langchain4j.model.googleai.GoogleAiGeminiChatModel
-      scriptLanguage: java
+      scriptLanguage: groovy
       script: |
         return dev.langchain4j.model.googleai.GoogleAiGeminiChatModel.builder()
             .apiKey("{{GEMINI_API_KEY}}")

@@ -27,10 +27,19 @@ public class CamelYamlComponentScanner {
         Set<String> dataFormats = new LinkedHashSet<>();
         Set<String> languages = new LinkedHashSet<>();
         Set<String> extraDependencies = new LinkedHashSet<>();
+        Set<String> explicitDependencies = new LinkedHashSet<>();
 
         if (yamlContent == null || yamlContent.isBlank()) {
-            return new ScanResult(schemes, eipHints, dataFormats, languages, extraDependencies);
+            return new ScanResult(
+                    schemes,
+                    eipHints,
+                    dataFormats,
+                    languages,
+                    extraDependencies,
+                    explicitDependencies);
         }
+
+        parseModelineDependencies(yamlContent, explicitDependencies);
 
         DefaultCamelContext context = new DefaultCamelContext();
         context.setAutowiredEnabled(false);
@@ -245,7 +254,31 @@ public class CamelYamlComponentScanner {
             }
         }
 
-        return new ScanResult(schemes, eipHints, dataFormats, languages, extraDependencies);
+        return new ScanResult(
+                schemes, eipHints, dataFormats, languages, extraDependencies, explicitDependencies);
+    }
+
+    private void parseModelineDependencies(String yamlContent, Set<String> explicitDependencies) {
+        if (yamlContent == null) return;
+        String[] lines = yamlContent.split("\\r?\\n");
+        for (String line : lines) {
+            String trimmed = line.trim();
+            if (trimmed.startsWith("#") && trimmed.contains("camel-dashboard: dependency=")) {
+                int index = trimmed.indexOf("camel-dashboard: dependency=");
+                String depsPart =
+                        trimmed.substring(index + "camel-dashboard: dependency=".length()).trim();
+                if (!depsPart.isEmpty()) {
+                    String[] deps = depsPart.split(",");
+                    for (String dep : deps) {
+                        String cleanDep = dep.trim();
+                        if (!cleanDep.isEmpty()) {
+                            explicitDependencies.add(cleanDep);
+                            log.info("Detected modeline dependency: {}", cleanDep);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private String extractScheme(String uri) {
@@ -286,13 +319,15 @@ public class CamelYamlComponentScanner {
             Set<String> eipHints,
             Set<String> dataFormats,
             Set<String> languages,
-            Set<String> extraDependencies) {
+            Set<String> extraDependencies,
+            Set<String> explicitDependencies) {
         public boolean isEmpty() {
             return schemes.isEmpty()
                     && eipHints.isEmpty()
                     && dataFormats.isEmpty()
                     && languages.isEmpty()
-                    && extraDependencies.isEmpty();
+                    && extraDependencies.isEmpty()
+                    && explicitDependencies.isEmpty();
         }
     }
 }

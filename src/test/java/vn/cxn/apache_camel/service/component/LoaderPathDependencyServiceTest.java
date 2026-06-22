@@ -32,6 +32,35 @@ class LoaderPathDependencyServiceTest {
     }
 
     @Test
+    void testModelineCommentParsing() {
+        String yamlContent =
+                """
+                # camel-dashboard: dependency=dev.langchain4j:langchain4j-google-ai-gemini:0.31.0, org.apache.camel:camel-langchain4j-embeddings:4.20.0
+                - from:
+                    uri: direct:start
+                    steps:
+                      - log: "Hello World"
+                """;
+        ScanResult scanResult = scanner.scan(yamlContent);
+        assertThat(scanResult.explicitDependencies())
+                .containsExactlyInAnyOrder(
+                        "dev.langchain4j:langchain4j-google-ai-gemini:0.31.0",
+                        "org.apache.camel:camel-langchain4j-embeddings:4.20.0");
+    }
+
+    @Test
+    void testClasspathScanPopulated() {
+        service.init(); // Explicitly call init
+        @SuppressWarnings("unchecked")
+        java.util.Set<String> activeArtifacts =
+                (java.util.Set<String>)
+                        org.springframework.test.util.ReflectionTestUtils.getField(
+                                service, "activeClasspathArtifacts");
+        assertThat(activeArtifacts).isNotEmpty();
+        assertThat(activeArtifacts).contains("org.apache.camel:camel-direct");
+    }
+
+    @Test
     void testServiceEnsureComponentsAvailable_OpenApiUser() throws IOException {
         Path yamlPath = Path.of("examples/openapi/user.camel.yaml");
         String yamlContent = Files.readString(yamlPath);

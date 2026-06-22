@@ -12,7 +12,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
-import vn.cxn.apache_camel.model.entity.RouteRuntimeStateEntity;
+import vn.cxn.apache_camel.model.dto.RouteRuntimeState;
 import vn.cxn.apache_camel.model.enums.RouteState;
 
 @Service
@@ -100,12 +100,12 @@ public class StandaloneClusterNodeService implements ClusterNodeService {
     }
 
     @Override
-    public List<RouteRuntimeStateEntity> getAllRouteStates() {
+    public List<RouteRuntimeState> getAllRouteStates() {
         if (camelContext == null) {
             return Collections.emptyList();
         }
 
-        List<RouteRuntimeStateEntity> states = new ArrayList<>();
+        List<RouteRuntimeState> states = new ArrayList<>();
         for (Route route : camelContext.getRoutes()) {
             String routeId = route.getId();
             String status;
@@ -115,11 +115,8 @@ public class StandaloneClusterNodeService implements ClusterNodeService {
                 status = RouteState.UNKNOWN.name();
             }
 
-            RouteRuntimeStateEntity stateEntity = new RouteRuntimeStateEntity();
-            stateEntity.setRouteId(routeId);
-            stateEntity.setInstanceId(instanceId);
-            stateEntity.setCurrentState(status);
-            stateEntity.setLastUpdated(Instant.now());
+            RouteRuntimeState stateEntity =
+                    new RouteRuntimeState(routeId, instanceId, status, null, Instant.now());
 
             states.add(stateEntity);
         }

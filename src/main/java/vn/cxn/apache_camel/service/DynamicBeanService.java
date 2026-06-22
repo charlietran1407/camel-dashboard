@@ -38,6 +38,8 @@ public class DynamicBeanService {
     private final Map<String, Object> liveInstances = new ConcurrentHashMap<>();
     // beanId -> ClassLoader (kept alive so classes remain loadable)
     private final Map<String, URLClassLoader> classLoaders = new ConcurrentHashMap<>();
+    // beanId -> Path of the active temporary JAR file (tracked to prevent disk leaks)
+    private final Map<String, Path> tempJarPaths = new ConcurrentHashMap<>();
 
     @PostConstruct
     public void init() {
@@ -158,15 +160,7 @@ public class DynamicBeanService {
             log.warn("Could not unbind bean '{}': {}", entity.getBeanName(), e.getMessage());
         }
 
-        // Release class loader
-        URLClassLoader cl = classLoaders.remove(beanId);
-        if (cl != null) {
-            try {
-                cl.close();
-            } catch (Exception ignored) {
-            }
-        }
-        liveInstances.remove(beanId);
+        cleanupBeanResources(beanId);
 
         entity.setRegistered(false);
         beanRepository.save(entity);
@@ -182,6 +176,8 @@ public class DynamicBeanService {
 
         BeanEntity entity = opt.get();
         if (entity.isRegistered()) unregisterBean(beanId);
+
+        cleanupBeanResources(beanId);
 
         beanRepository.delete(entity);
         return true;
@@ -240,21 +236,15 @@ public class DynamicBeanService {
     // ─── Internal helpers ────────────────────────────────────────
 
     private void reloadBean(BeanEntity entity) throws Exception {
+        String beanId = entity.getId().toString();
+
+        // Close old class loader and delete old temp JAR if any
+        cleanupBeanResources(beanId);
+
         // Write BLOB bytes to a temporary JAR file on the local filesystem
         Path tempJarPath = Files.createTempFile("bean-" + entity.getId() + "-", ".jar");
         Files.write(tempJarPath, entity.getJarData());
-        tempJarPath.toFile().deleteOnExit();
-
-        String beanId = entity.getId().toString();
-
-        // Close old class loader if any
-        URLClassLoader old = classLoaders.remove(beanId);
-        if (old != null) {
-            try {
-                old.close();
-            } catch (Exception ignored) {
-            }
-        }
+        tempJarPaths.put(beanId, tempJarPath);
 
         // Create isolated class loader for the JAR
         URLClassLoader cl =
@@ -274,6 +264,31 @@ public class DynamicBeanService {
                 "Bound bean '{}' ({}) into Camel Registry",
                 entity.getBeanName(),
                 entity.getClassName());
+    }
+
+    private void cleanupBeanResources(String beanId) {
+        URLClassLoader cl = classLoaders.remove(beanId);
+        if (cl != null) {
+            try {
+                cl.close();
+            } catch (Exception ignored) {
+            }
+        }
+
+        Path path = tempJarPaths.remove(beanId);
+        if (path != null) {
+            try {
+                Files.deleteIfExists(path);
+                log.info("Deleted temporary JAR file for bean '{}': {}", beanId, path);
+            } catch (Exception e) {
+                log.warn(
+                        "Failed to delete temporary JAR file for bean '{}': {}",
+                        beanId,
+                        e.getMessage());
+            }
+        }
+
+        liveInstances.remove(beanId);
     }
 
     private BeanInfo toDto(BeanEntity entity) {

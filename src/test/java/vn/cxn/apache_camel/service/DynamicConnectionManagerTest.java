@@ -77,4 +77,33 @@ class DynamicConnectionManagerTest {
         // Verify the component was successfully stopped and removed from CamelContext
         verify(camelContext, times(1)).removeComponent(eq(dbId));
     }
+
+    @Test
+    void testRegisterDatabaseLeakPreventionOnException() throws Exception {
+        String dbId = "leakDb";
+        String url = "jdbc:postgresql://localhost:5432/leakdb";
+        String user = "postgres";
+        String pass = "secret";
+
+        // Mock DynamicComponentFactory behavior to return a mocked AutoCloseable DataSource
+        interface CloseableDataSource extends DataSource, AutoCloseable {}
+        CloseableDataSource mockCloseableDS = mock(CloseableDataSource.class);
+        when(dynamicComponentFactory.createDataSource(any(), any(), any()))
+                .thenReturn(mockCloseableDS);
+        when(dynamicComponentFactory.createSqlComponent(any()))
+                .thenReturn(mock(SqlComponent.class));
+
+        // Force an exception during addComponent
+        doThrow(new RuntimeException("Simulated Camel failure"))
+                .when(camelContext)
+                .addComponent(eq(dbId), any());
+
+        // Call registerDatabase and expect a RuntimeException
+        org.junit.jupiter.api.Assertions.assertThrows(
+                RuntimeException.class,
+                () -> connectionManager.registerDatabase(dbId, url, user, pass, "RouteLeak"));
+
+        // Verify the created DataSource was closed immediately to prevent connection leaks
+        verify(mockCloseableDS, times(1)).close();
+    }
 }

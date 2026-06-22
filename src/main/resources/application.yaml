@@ -91,6 +91,8 @@ camel:
       stream-key: "${CAMEL_DASHBOARD_CLUSTER_STREAM_KEY:${camel.dashboard.cluster.group}:cluster:event:stream}"
       channel: "${CAMEL_DASHBOARD_CLUSTER_CHANNEL:${camel.dashboard.cluster.group}:cluster:event:channel}"
       node-key-prefix: "${CAMEL_DASHBOARD_CLUSTER_NODE_KEY_PREFIX:${camel.dashboard.cluster.group}:cluster:node:}"
+      route-states-key-prefix: "${CAMEL_DASHBOARD_CLUSTER_ROUTE_STATES_KEY_PREFIX:${camel.dashboard.cluster.group}:cluster:route:states:}"
+      checkpoint-key-prefix: "${CAMEL_DASHBOARD_CLUSTER_CHECKPOINT_KEY_PREFIX:${camel.dashboard.cluster.group}:cluster:checkpoint:}"
   component:
     micrometer:
       enabled: true
@@ -118,4 +120,8 @@ app:
 logging:
   level:
     org.apache.camel: WARN
+
+route:
+  restore:
+    delay-ms: ${ROUTE_RESTORE_DELAY_MS:2000}
 

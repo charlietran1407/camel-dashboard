@@ -9,6 +9,7 @@ import org.apache.camel.impl.DefaultCamelContext;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import vn.cxn.apache_camel.config.RedisClusterProperties;
 import vn.cxn.apache_camel.model.dto.RouteVersion;
 import vn.cxn.apache_camel.service.mapper.RouteVersionMapperImpl;
 import vn.cxn.apache_camel.service.route_document.YamlRouteDocumentStrategyImpl;
@@ -117,7 +118,8 @@ class RouteValidationServiceTest {
                         new RouteVersionMapperImpl(
                                 new com.fasterxml.jackson.databind.ObjectMapper(),
                                 mainCamelContext,
-                                routeRepo));
+                                routeRepo),
+                        new RedisClusterProperties());
         routeVersionService.init();
 
         dynamicBeanService = Mockito.mock(DynamicBeanService.class);

@@ -1,6 +1,8 @@
 package vn.cxn.apache_camel.service.component;
 
+import jakarta.annotation.PostConstruct;
 import java.io.File;
+import java.io.InputStream;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -9,10 +11,15 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Properties;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import org.jboss.shrinkwrap.resolver.api.maven.Maven;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 import org.springframework.stereotype.Service;
 import vn.cxn.apache_camel.service.component.CamelYamlComponentScanner.ScanResult;
 
@@ -40,10 +47,51 @@ public class LoaderPathDependencyService {
     private final CamelYamlComponentScanner scanner;
     private final CamelCatalogCoordinateMapper mapper;
 
+    private final Set<String> activeClasspathArtifacts = ConcurrentHashMap.newKeySet();
+
     public LoaderPathDependencyService(
             CamelYamlComponentScanner scanner, CamelCatalogCoordinateMapper mapper) {
         this.scanner = scanner;
         this.mapper = mapper;
+    }
+
+    @PostConstruct
+    public void init() {
+        scanActiveClasspath();
+    }
+
+    private void scanActiveClasspath() {
+        log.info("Scanning classpath for active Maven dependencies...");
+        long start = System.currentTimeMillis();
+        int count = 0;
+        try {
+            PathMatchingResourcePatternResolver resolver =
+                    new PathMatchingResourcePatternResolver();
+            Resource[] resources =
+                    resolver.getResources("classpath*:META-INF/maven/**/*.properties");
+            for (Resource resource : resources) {
+                try (InputStream is = resource.getInputStream()) {
+                    Properties props = new Properties();
+                    props.load(is);
+                    String groupId = props.getProperty("groupId");
+                    String artifactId = props.getProperty("artifactId");
+                    if (groupId != null && artifactId != null) {
+                        String key = groupId.trim() + ":" + artifactId.trim();
+                        activeClasspathArtifacts.add(key);
+                        count++;
+                    }
+                } catch (Exception e) {
+                    log.warn(
+                            "Failed to parse pom.properties from resource: {}, error: {}",
+                            resource.getDescription(),
+                            e.getMessage());
+                }
+            }
+        } catch (Exception e) {
+            log.error("Failed to scan active classpath for Maven properties", e);
+        }
+        long duration = System.currentTimeMillis() - start;
+        log.info("Scan completed in {} ms. Found {} active dependencies.", duration, count);
     }
 
     /**
@@ -70,7 +118,15 @@ public class LoaderPathDependencyService {
                 scan.dataFormats(),
                 scan.languages());
 
-        List<String> missingCoords = mapper.resolveMissingCoordinates(scan);
+        List<String> missingCoords = new ArrayList<>(mapper.resolveMissingCoordinates(scan));
+
+        // Add explicit dependencies if they are not already on the classpath
+        for (String dep : scan.explicitDependencies()) {
+            String artifactKey = getGroupIdArtifactId(dep);
+            if (artifactKey != null && !activeClasspathArtifacts.contains(artifactKey)) {
+                missingCoords.add(dep);
+            }
+        }
 
         if (missingCoords.isEmpty()) {
             log.info("All required components are already on the classpath");
@@ -119,8 +175,9 @@ public class LoaderPathDependencyService {
                 }
 
                 for (File jar : resolvedFiles) {
-                    if (isJarAlreadyOnClasspath(jar)) {
-                        log.info("Skipping provided dependency: {}", jar.getName());
+                    String coords = getJarCoordinates(jar);
+                    if (coords != null && activeClasspathArtifacts.contains(coords)) {
+                        log.info("Skipping provided dependency: {} ({})", jar.getName(), coords);
                         continue;
                     }
                     Path dest = Paths.get(libDir.getAbsolutePath(), jar.getName());
@@ -146,59 +203,31 @@ public class LoaderPathDependencyService {
         return downloaded;
     }
 
-    private boolean isJarAlreadyOnClasspath(File jar) {
+    private String getJarCoordinates(File jar) {
         try (java.util.jar.JarFile jarFile = new java.util.jar.JarFile(jar)) {
             java.util.Enumeration<java.util.jar.JarEntry> entries = jarFile.entries();
             while (entries.hasMoreElements()) {
                 java.util.jar.JarEntry entry = entries.nextElement();
                 String name = entry.getName();
                 if (name.startsWith("META-INF/maven/") && name.endsWith("/pom.properties")) {
-                    if (Thread.currentThread().getContextClassLoader().getResource(name) != null) {
-                        log.debug(
-                                "Skipping {} because resource {} is already on the classpath",
-                                jar.getName(),
-                                name);
-                        return true;
-                    }
-                }
-            }
-
-            // Fallback: check only the first 5 classes to avoid scanning the entire JAR
-            int classChecked = 0;
-            entries = jarFile.entries();
-            while (entries.hasMoreElements()) {
-                java.util.jar.JarEntry entry = entries.nextElement();
-                String name = entry.getName();
-                if (name.endsWith(".class")
-                        && !name.contains("$")
-                        && !name.startsWith("META-INF/")
-                        && !name.equals("module-info.class")) {
-                    String className =
-                            name.substring(0, name.length() - ".class".length()).replace('/', '.');
-                    try {
-                        Class.forName(
-                                className, false, Thread.currentThread().getContextClassLoader());
-                        log.debug(
-                                "Skipping {} because {} is already on the classpath",
-                                jar.getName(),
-                                className);
-                        return true;
-                    } catch (ClassNotFoundException ignored) {
-                        // Class not present; keep searching
-                    }
-                    classChecked++;
-                    if (classChecked >= 5) {
-                        break;
+                    try (InputStream is = jarFile.getInputStream(entry)) {
+                        Properties props = new Properties();
+                        props.load(is);
+                        String groupId = props.getProperty("groupId");
+                        String artifactId = props.getProperty("artifactId");
+                        if (groupId != null && artifactId != null) {
+                            return groupId.trim() + ":" + artifactId.trim();
+                        }
                     }
                 }
             }
         } catch (Exception e) {
             log.warn(
-                    "Failed to inspect JAR {} for classpath duplicates: {}",
+                    "Failed to extract Maven coordinates from JAR {}: {}",
                     jar.getName(),
                     e.getMessage());
         }
-        return false;
+        return null;
     }
 
     /**
@@ -225,5 +254,16 @@ public class LoaderPathDependencyService {
 
     public String getLoaderPath() {
         return loaderPath;
+    }
+
+    private String getGroupIdArtifactId(String gav) {
+        if (gav == null) {
+            return null;
+        }
+        String[] parts = gav.split(":");
+        if (parts.length >= 2) {
+            return parts[0].trim() + ":" + parts[1].trim();
+        }
+        return null;
     }
 }

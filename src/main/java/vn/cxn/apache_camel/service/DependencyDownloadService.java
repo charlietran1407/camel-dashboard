@@ -10,9 +10,8 @@ import java.util.List;
 import org.jboss.shrinkwrap.resolver.api.maven.Maven;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Service;
 
-@Service
+// @Service
 public class DependencyDownloadService {
 
     private static final Logger log = LoggerFactory.getLogger(DependencyDownloadService.class);
@@ -36,7 +35,8 @@ public class DependencyDownloadService {
             String trimCoord = coord.trim();
             log.info("Resolving Maven coordinate and transitive dependencies for: {}", trimCoord);
             try {
-                // ShrinkWrap resolves coordinates and downloads them with transitive dependencies
+                // ShrinkWrap resolves coordinates and downloads them with transitive
+                // dependencies
                 File[] resolvedFiles =
                         Maven.resolver().resolve(trimCoord).withTransitivity().asFile();
 
