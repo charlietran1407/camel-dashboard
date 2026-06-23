@@ -188,7 +188,7 @@ public class RouteManagementController {
 
             if (activeOpt.isPresent()) {
                 RouteVersion rv = activeOpt.get();
-                String content = versionService.getContentFromDisk(rv.getId());
+                String content = versionService.getContentDb(rv.getId());
                 return ResponseEntity.ok(
                         Map.of(
                                 "routeId",
@@ -223,7 +223,7 @@ public class RouteManagementController {
 
             if (activeOpt.isPresent()) {
                 RouteVersion rv = activeOpt.get();
-                String content = versionService.getContentFromDisk(rv.getId());
+                String content = versionService.getContentDb(rv.getId());
                 String mermaidCode = CamelRouteMermaidParser.parse(rv.getFileName(), content);
                 return ResponseEntity.ok(
                         Map.of(

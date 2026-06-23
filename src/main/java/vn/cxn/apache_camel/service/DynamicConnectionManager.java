@@ -57,8 +57,8 @@ public class DynamicConnectionManager implements AutoCloseable {
         }
 
         log.info(
-                "Registering database connection pool for component '{}' (URL: {}), associated with"
-                        + " Route: {}",
+                "[Connection] Register - Start - Registering database connection pool for component"
+                        + " '{}' (URL: {}), associated with Route: {}",
                 dbId,
                 url,
                 routeId);
@@ -79,14 +79,14 @@ public class DynamicConnectionManager implements AutoCloseable {
         if (cachedConfig != null && cachedConfig.equals(newConfig)) {
             if (isMongo && mongoRegistryCache.containsKey(dbId)) {
                 log.info(
-                        "MongoDB component '{}' is already registered and active with the same"
-                                + " configuration.",
+                        "[Connection] Register - Detail - MongoDB component '{}' is already"
+                                + " registered and active with the same configuration.",
                         dbId);
                 return;
             } else if (!isMongo && registryCache.containsKey(dbId)) {
                 log.info(
-                        "Database component '{}' is already registered and active with the same"
-                                + " configuration.",
+                        "[Connection] Register - Detail - Database component '{}' is already"
+                                + " registered and active with the same configuration.",
                         dbId);
                 return;
             }
@@ -96,49 +96,82 @@ public class DynamicConnectionManager implements AutoCloseable {
             // Safely stop and unbind existing component if it exists
             if (camelContext.getComponent(dbId, false) != null) {
                 log.warn(
-                        "Camel component '{}' already exists. Overwriting component registration.",
+                        "[Connection] Register - Warn - Camel component '{}' already exists."
+                                + " Overwriting component registration.",
                         dbId);
                 camelContext.removeComponent(dbId);
                 try {
                     camelContext.getRegistry().unbind(dbId);
                 } catch (Exception e) {
-                    log.warn("Failed to unbind registry bean for '{}': {}", dbId, e.getMessage());
+                    log.warn(
+                            "[Connection] Register - Warn - Failed to unbind registry bean for"
+                                    + " '{}': {}",
+                            dbId,
+                            e.getMessage());
                 }
             }
 
             if (isMongo) {
                 MongoClient mongoClient = dynamicComponentFactory.createMongoClient(url);
+                try {
+                    camelContext.addComponent(
+                            dbId, dynamicComponentFactory.createMongoDbComponent(mongoClient));
+                    camelContext.getRegistry().bind(dbId, mongoClient);
 
-                camelContext.addComponent(
-                        dbId, dynamicComponentFactory.createMongoDbComponent(mongoClient));
-                camelContext.getRegistry().bind(dbId, mongoClient);
+                    MongoClient oldClient = mongoRegistryCache.put(dbId, mongoClient);
+                    if (oldClient != null) {
+                        try {
+                            oldClient.close();
+                        } catch (Exception e) {
+                            log.warn(
+                                    "[Connection] Close - Failed - MongoClient for '{}': {}",
+                                    dbId,
+                                    e.getMessage());
+                        }
+                    }
 
-                MongoClient oldClient = mongoRegistryCache.put(dbId, mongoClient);
-                if (oldClient != null) {
-                    oldClient.close();
+                    configCache.put(dbId, newConfig);
+                    log.info(
+                            "[Connection] Register - Success - MongoDB component '{}' in"
+                                    + " CamelContext.",
+                            dbId);
+                } catch (Exception e) {
+                    try {
+                        mongoClient.close();
+                    } catch (Exception ex) {
+                        log.warn(
+                                "[Connection] Close - Failed - MongoClient for '{}' during"
+                                        + " rollback: {}",
+                                dbId,
+                                ex.getMessage());
+                    }
+                    throw e;
                 }
-
-                configCache.put(dbId, newConfig);
-                log.info("Successfully registered MongoDB component '{}' in CamelContext.", dbId);
             } else {
                 DataSource dataSource = dynamicComponentFactory.createDataSource(url, user, pass);
+                try {
+                    camelContext.addComponent(
+                            dbId, dynamicComponentFactory.createSqlComponent(dataSource));
+                    camelContext.getRegistry().bind(dbId, dataSource);
 
-                camelContext.addComponent(
-                        dbId, dynamicComponentFactory.createSqlComponent(dataSource));
-                camelContext.getRegistry().bind(dbId, dataSource);
+                    // Cache the active connection pool
+                    DataSource oldDataSource = registryCache.put(dbId, dataSource);
+                    closeDataSource(oldDataSource);
 
-                // Cache the active connection pool
-                DataSource oldDataSource = registryCache.put(dbId, dataSource);
-                closeDataSource(oldDataSource);
-
-                configCache.put(dbId, newConfig);
-                log.info(
-                        "Successfully registered SQL database component '{}' in CamelContext.",
-                        dbId);
+                    configCache.put(dbId, newConfig);
+                    log.info(
+                            "[Connection] Register - Success - SQL database component '{}' in"
+                                    + " CamelContext.",
+                            dbId);
+                } catch (Exception e) {
+                    closeDataSource(dataSource);
+                    throw e;
+                }
             }
         } catch (Exception e) {
             log.error(
-                    "Failed to register dynamic database component '{}': {}",
+                    "[Connection] Register - Failed - Failed to register dynamic database component"
+                            + " '{}': {}",
                     dbId,
                     e.getMessage(),
                     e);
@@ -155,28 +188,33 @@ public class DynamicConnectionManager implements AutoCloseable {
             return;
         }
 
-        log.info("Starting connection cleanup check for Route: {}", routeId);
+        log.info("[Connection] Cleanup - Start - Route: {}", routeId);
 
+        java.util.List<String> toUnregister = new java.util.ArrayList<>();
         for (Map.Entry<String, Set<String>> entry : dbRouteAssociations.entrySet()) {
             String dbId = entry.getKey();
             Set<String> routes = entry.getValue();
 
             if (routes.remove(routeId)) {
                 log.info(
-                        "Removed Route reference '{}' from database component '{}'. Remaining"
-                                + " references: {}",
+                        "[Connection] Cleanup - Detail - Removed Route reference '{}' from database"
+                                + " component '{}'. Remaining references: {}",
                         routeId,
                         dbId,
                         routes.size());
 
                 if (routes.isEmpty()) {
-                    log.info(
-                            "Database component '{}' has zero remaining active route associations."
-                                    + " Automatically unregistering and closing pool.",
-                            dbId);
-                    unregisterDatabase(dbId);
+                    toUnregister.add(dbId);
                 }
             }
+        }
+
+        for (String dbId : toUnregister) {
+            log.info(
+                    "[Connection] Cleanup - Detail - Database component '{}' has zero remaining"
+                            + " active route associations. Automatically unregistering.",
+                    dbId);
+            unregisterDatabase(dbId);
         }
     }
 
@@ -186,13 +224,20 @@ public class DynamicConnectionManager implements AutoCloseable {
             return;
         }
 
-        log.info("Unregistering dynamic database component and registry bean: '{}'", dbId);
+        log.info(
+                "[Connection] Unregister - Start - Unregistering dynamic database component and"
+                        + " registry bean: '{}'",
+                dbId);
         try {
             camelContext.removeComponent(dbId);
             try {
                 camelContext.getRegistry().unbind(dbId);
             } catch (Exception e) {
-                log.warn("Failed to unbind registry bean for '{}': {}", dbId, e.getMessage());
+                log.warn(
+                        "[Connection] Unregister - Warn - Failed to unbind registry bean for '{}':"
+                                + " {}",
+                        dbId,
+                        e.getMessage());
             }
             dbRouteAssociations.remove(dbId);
             configCache.remove(dbId);
@@ -202,11 +247,15 @@ public class DynamicConnectionManager implements AutoCloseable {
             MongoClient mongoClient = mongoRegistryCache.remove(dbId);
             if (mongoClient != null) {
                 mongoClient.close();
-                log.info("Closed MongoClient connection for '{}'", dbId);
+                log.info(
+                        "[Connection] Unregister - Success - Closed MongoClient connection for"
+                                + " '{}'",
+                        dbId);
             }
         } catch (Exception e) {
             log.warn(
-                    "Error encountered while unregistering component '{}': {}",
+                    "[Connection] Unregister - Failed - Error encountered while unregistering"
+                            + " component '{}': {}",
                     dbId,
                     e.getMessage());
         }

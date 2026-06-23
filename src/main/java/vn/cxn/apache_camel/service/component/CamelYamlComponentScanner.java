@@ -20,6 +20,10 @@ public class CamelYamlComponentScanner {
 
     private static final Logger log = LoggerFactory.getLogger(CamelYamlComponentScanner.class);
 
+    private static final java.util.regex.Pattern MODELINE_PATTERN =
+            java.util.regex.Pattern.compile(
+                    "^#\\s*camel-dashboard\\s*:\\s*dependency\\s*=\\s*(.+)");
+
     /** Scan {@code yamlContent} and return a {@link ScanResult} with all detected identifiers. */
     public ScanResult scan(String yamlContent) {
         Set<String> schemes = new LinkedHashSet<>();
@@ -27,10 +31,19 @@ public class CamelYamlComponentScanner {
         Set<String> dataFormats = new LinkedHashSet<>();
         Set<String> languages = new LinkedHashSet<>();
         Set<String> extraDependencies = new LinkedHashSet<>();
+        Set<String> explicitDependencies = new LinkedHashSet<>();
 
         if (yamlContent == null || yamlContent.isBlank()) {
-            return new ScanResult(schemes, eipHints, dataFormats, languages, extraDependencies);
+            return new ScanResult(
+                    schemes,
+                    eipHints,
+                    dataFormats,
+                    languages,
+                    extraDependencies,
+                    explicitDependencies);
         }
+
+        parseModelineDependencies(yamlContent, explicitDependencies);
 
         DefaultCamelContext context = new DefaultCamelContext();
         context.setAutowiredEnabled(false);
@@ -245,7 +258,30 @@ public class CamelYamlComponentScanner {
             }
         }
 
-        return new ScanResult(schemes, eipHints, dataFormats, languages, extraDependencies);
+        return new ScanResult(
+                schemes, eipHints, dataFormats, languages, extraDependencies, explicitDependencies);
+    }
+
+    private void parseModelineDependencies(String yamlContent, Set<String> explicitDependencies) {
+        if (yamlContent == null) return;
+        String[] lines = yamlContent.split("\\r?\\n");
+        for (String line : lines) {
+            String trimmed = line.trim();
+            java.util.regex.Matcher matcher = MODELINE_PATTERN.matcher(trimmed);
+            if (matcher.matches()) {
+                String depsPart = matcher.group(1).replaceAll("\\s+", "");
+                if (!depsPart.isEmpty()) {
+                    String[] deps = depsPart.split(",");
+                    for (String dep : deps) {
+                        String cleanDep = dep.trim();
+                        if (!cleanDep.isEmpty()) {
+                            explicitDependencies.add(cleanDep);
+                            log.info("Detected modeline dependency: {}", cleanDep);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private String extractScheme(String uri) {
@@ -286,13 +322,15 @@ public class CamelYamlComponentScanner {
             Set<String> eipHints,
             Set<String> dataFormats,
             Set<String> languages,
-            Set<String> extraDependencies) {
+            Set<String> extraDependencies,
+            Set<String> explicitDependencies) {
         public boolean isEmpty() {
             return schemes.isEmpty()
                     && eipHints.isEmpty()
                     && dataFormats.isEmpty()
                     && languages.isEmpty()
-                    && extraDependencies.isEmpty();
+                    && extraDependencies.isEmpty()
+                    && explicitDependencies.isEmpty();
         }
     }
 }

@@ -15,6 +15,7 @@ import org.springframework.data.redis.connection.stream.RecordId;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import vn.cxn.apache_camel.config.RedisClusterProperties;
 import vn.cxn.apache_camel.model.dto.RouteVersion;
 import vn.cxn.apache_camel.model.entity.RouteEntity;
 import vn.cxn.apache_camel.model.entity.RouteVersionEntity;
@@ -43,6 +44,8 @@ public class RouteVersionService {
     private final List<RouteDocumentStrategy> routeDocumentStrategies;
     private final RouteVersionMapper routeVersionMapper;
 
+    private final RedisClusterProperties properties;
+
     @Value("${camel.dashboard.cluster.stream-key:cluster:event:stream}")
     private String streamKey;
 
@@ -59,7 +62,8 @@ public class RouteVersionService {
             org.springframework.beans.factory.ObjectProvider<RedisTemplate<String, Object>>
                     redisTemplateProvider,
             List<RouteDocumentStrategy> routeDocumentStrategies,
-            RouteVersionMapper routeVersionMapper) {
+            RouteVersionMapper routeVersionMapper,
+            RedisClusterProperties properties) {
         this.versionRepository = versionRepository;
         this.serviceRepository = serviceRepository;
         this.routeRepository = routeRepository;
@@ -69,6 +73,7 @@ public class RouteVersionService {
         this.redisTemplateProvider = redisTemplateProvider;
         this.routeDocumentStrategies = routeDocumentStrategies;
         this.routeVersionMapper = routeVersionMapper;
+        this.properties = properties;
     }
 
     @PostConstruct
@@ -444,7 +449,7 @@ public class RouteVersionService {
 
                 // Update this node's own checkpoint so it doesn't re-execute this event on
                 // recovery
-                redisTemplate.opsForValue().set("cluster:checkpoint:" + instanceId, eventId);
+                redisTemplate.opsForValue().set(properties.checkpointKey(instanceId), eventId);
             }
         } catch (Exception e) {
             log.error(
@@ -491,10 +496,6 @@ public class RouteVersionService {
         }
     }
 
-    public String getContentFromDisk(String versionId) throws IOException {
-        return getContentDb(versionId);
-    }
-
     public String getContentDb(String versionId) throws IOException {
         try {
             Optional<RouteVersionEntity> opt = versionRepository.findById(parseUuid(versionId));
@@ -522,7 +523,7 @@ public class RouteVersionService {
         }
 
         normalizeRouteMetadata(version);
-        String content = getContentFromDisk(version.getId());
+        String content = getContentDb(version.getId());
         String serviceId = version.getServiceId();
         String prefix =
                 (serviceId != null && !serviceId.isBlank())
@@ -557,8 +558,7 @@ public class RouteVersionService {
                     .forEach(signatures::add);
         }
         signatures.addAll(
-                extractEndpointSignatures(
-                        version.getFileName(), getContentFromDisk(version.getId())));
+                extractEndpointSignatures(version.getFileName(), getContentDb(version.getId())));
         return signatures;
     }
 
@@ -737,7 +737,7 @@ public class RouteVersionService {
                 .map(
                         v -> {
                             try {
-                                String content = getContentFromDisk(v.getId());
+                                String content = getContentDb(v.getId());
                                 v.setContent(content);
                             } catch (IOException e) {
                                 log.warn(

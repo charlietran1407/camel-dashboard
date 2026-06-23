@@ -14,6 +14,8 @@ public class RedisClusterProperties {
     private String streamKey;
     private String channel;
     private String nodeKeyPrefix = "cluster:node:";
+    private String routeStatesKeyPrefix = "cluster:route:states:";
+    private String checkpointKeyPrefix = "cluster:checkpoint:";
     private final Redis redis = new Redis();
 
     public String getInstanceId() {
@@ -96,8 +98,28 @@ public class RedisClusterProperties {
         return nodeKeyPrefix + instanceId;
     }
 
+    public String getRouteStatesKeyPrefix() {
+        return routeStatesKeyPrefix;
+    }
+
+    public void setRouteStatesKeyPrefix(String routeStatesKeyPrefix) {
+        this.routeStatesKeyPrefix = routeStatesKeyPrefix;
+    }
+
     public String routeStatesKey(String instanceId) {
-        return "cluster:route:states:" + instanceId;
+        return routeStatesKeyPrefix + instanceId;
+    }
+
+    public String getCheckpointKeyPrefix() {
+        return checkpointKeyPrefix;
+    }
+
+    public void setCheckpointKeyPrefix(String checkpointKeyPrefix) {
+        this.checkpointKeyPrefix = checkpointKeyPrefix;
+    }
+
+    public String checkpointKey(String instanceId) {
+        return checkpointKeyPrefix + instanceId;
     }
 
     public String nodeKeyPattern() {
@@ -105,7 +127,7 @@ public class RedisClusterProperties {
     }
 
     public String routeStatesKeyPattern() {
-        return "cluster:route:states:*";
+        return routeStatesKeyPrefix + "*";
     }
 
     public static class Redis {

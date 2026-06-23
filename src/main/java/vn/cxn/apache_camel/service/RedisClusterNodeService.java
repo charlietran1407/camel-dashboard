@@ -24,7 +24,7 @@ import org.springframework.stereotype.Service;
 import vn.cxn.apache_camel.config.RedisClusterProperties;
 import vn.cxn.apache_camel.model.cluster.NodeMetadata;
 import vn.cxn.apache_camel.model.cluster.RouteStateSnapshot;
-import vn.cxn.apache_camel.model.entity.RouteRuntimeStateEntity;
+import vn.cxn.apache_camel.model.dto.RouteRuntimeState;
 import vn.cxn.apache_camel.model.enums.RouteState;
 
 @Service
@@ -348,7 +348,7 @@ public class RedisClusterNodeService implements ClusterNodeService {
     }
 
     @Override
-    public List<RouteRuntimeStateEntity> getAllRouteStates() {
+    public List<RouteRuntimeState> getAllRouteStates() {
         try {
             Set<String> keys = redisTemplate.keys(properties.routeStatesKeyPattern());
             if (keys == null || keys.isEmpty()) {
@@ -367,18 +367,16 @@ public class RedisClusterNodeService implements ClusterNodeService {
                     .map(
                             item -> {
                                 if (item instanceof RouteStateSnapshot snapshot) {
-                                    RouteRuntimeStateEntity entity = new RouteRuntimeStateEntity();
-                                    entity.setRouteId(snapshot.routeId());
-                                    entity.setInstanceId(snapshot.instanceId());
-                                    entity.setCurrentState(snapshot.currentState());
-                                    entity.setErrorMessage(snapshot.errorMessage());
-                                    if (snapshot.lastUpdated() != null) {
-                                        entity.setLastUpdated(
-                                                Instant.parse(snapshot.lastUpdated()));
-                                    }
-                                    return entity;
+                                    return new RouteRuntimeState(
+                                            snapshot.routeId(),
+                                            snapshot.instanceId(),
+                                            snapshot.currentState(),
+                                            snapshot.errorMessage(),
+                                            snapshot.lastUpdated() != null
+                                                    ? Instant.parse(snapshot.lastUpdated())
+                                                    : Instant.now());
                                 } else {
-                                    return toEntity((Map<?, ?>) item);
+                                    return toDto((Map<?, ?>) item);
                                 }
                             })
                     .toList();
@@ -388,17 +386,14 @@ public class RedisClusterNodeService implements ClusterNodeService {
         }
     }
 
-    private RouteRuntimeStateEntity toEntity(Map<?, ?> raw) {
-        RouteRuntimeStateEntity entity = new RouteRuntimeStateEntity();
-        entity.setRouteId((String) raw.get("routeId"));
-        entity.setInstanceId((String) raw.get("instanceId"));
-        entity.setCurrentState((String) raw.get("currentState"));
-        entity.setErrorMessage((String) raw.get("errorMessage"));
+    private RouteRuntimeState toDto(Map<?, ?> raw) {
         String updated = (String) raw.get("lastUpdated");
-        if (updated != null) {
-            entity.setLastUpdated(Instant.parse(updated));
-        }
-        return entity;
+        return new RouteRuntimeState(
+                (String) raw.get("routeId"),
+                (String) raw.get("instanceId"),
+                (String) raw.get("currentState"),
+                (String) raw.get("errorMessage"),
+                updated != null ? Instant.parse(updated) : Instant.now());
     }
 
     // =====================================================================

@@ -176,8 +176,6 @@ public class DbConnectionService {
                     plainPassword = decrypt(existingOpt.get().getPassword());
                 }
             }
-        } else {
-            plainPassword = decrypt(plainPassword);
         }
 
         DbConnectionEntity temp = new DbConnectionEntity();

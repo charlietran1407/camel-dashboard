@@ -67,7 +67,7 @@ public class RouteVersionController {
         if (versionOpt.isPresent()) {
             RouteVersion v = versionOpt.get();
             try {
-                String content = versionService.getContentFromDisk(v.getId());
+                String content = versionService.getContentDb(v.getId());
                 RouteValidationResult valResult =
                         validationService.validate(
                                 v.getServiceId(), v.getFileName(), content, "FAST");
@@ -83,7 +83,7 @@ public class RouteVersionController {
     @GetMapping("/{versionId}/content")
     public ResponseEntity<?> getVersionContent(@PathVariable String versionId) {
         try {
-            String content = versionService.getContentFromDisk(versionId);
+            String content = versionService.getContentDb(versionId);
             return ResponseEntity.ok(Map.of("versionId", versionId, "content", content));
         } catch (Exception e) {
             return ResponseEntity.status(404)

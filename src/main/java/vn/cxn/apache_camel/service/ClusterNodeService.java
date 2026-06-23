@@ -2,7 +2,7 @@ package vn.cxn.apache_camel.service;
 
 import java.util.List;
 import java.util.Map;
-import vn.cxn.apache_camel.model.entity.RouteRuntimeStateEntity;
+import vn.cxn.apache_camel.model.dto.RouteRuntimeState;
 
 public interface ClusterNodeService {
     void init();
@@ -15,7 +15,7 @@ public interface ClusterNodeService {
 
     void updateLocalRouteStates();
 
-    List<RouteRuntimeStateEntity> getAllRouteStates();
+    List<RouteRuntimeState> getAllRouteStates();
 
     boolean isRedisEnabled();
 }

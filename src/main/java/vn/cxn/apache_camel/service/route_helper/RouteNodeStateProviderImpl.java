@@ -6,8 +6,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.stereotype.Service;
+import vn.cxn.apache_camel.model.dto.RouteRuntimeState;
 import vn.cxn.apache_camel.model.entity.ClusterNodeEntity;
-import vn.cxn.apache_camel.model.entity.RouteRuntimeStateEntity;
 import vn.cxn.apache_camel.model.enums.RouteState;
 
 @Service
@@ -17,26 +17,26 @@ public class RouteNodeStateProviderImpl implements RouteNodeStateProvider {
     public List<Map<String, Object>> getNodeStatesForRoute(
             String routeId,
             List<ClusterNodeEntity> onlineNodes,
-            Map<String, Map<String, RouteRuntimeStateEntity>> statesByRouteAndNode) {
+            Map<String, Map<String, RouteRuntimeState>> statesByRouteAndNode) {
         List<Map<String, Object>> nodeStates = new ArrayList<>();
         if (routeId == null || routeId.isBlank()) {
             return nodeStates;
         }
-        Map<String, RouteRuntimeStateEntity> nodeStatesForRoute =
+        Map<String, RouteRuntimeState> nodeStatesForRoute =
                 statesByRouteAndNode.getOrDefault(routeId, Collections.emptyMap());
         for (ClusterNodeEntity node : onlineNodes) {
             String nodeInstanceId = node.getInstanceId();
-            RouteRuntimeStateEntity stateEntity = nodeStatesForRoute.get(nodeInstanceId);
+            RouteRuntimeState stateEntity = nodeStatesForRoute.get(nodeInstanceId);
 
             Map<String, Object> nodeStateMap = new LinkedHashMap<>();
             nodeStateMap.put("instanceId", nodeInstanceId);
             nodeStateMap.put(
                     "status",
                     stateEntity != null
-                            ? stateEntity.getCurrentState()
+                            ? stateEntity.currentState()
                             : RouteState.STOPPED.getValue());
             nodeStateMap.put(
-                    "errorMessage", stateEntity != null ? stateEntity.getErrorMessage() : null);
+                    "errorMessage", stateEntity != null ? stateEntity.errorMessage() : null);
             nodeStates.add(nodeStateMap);
         }
         return nodeStates;

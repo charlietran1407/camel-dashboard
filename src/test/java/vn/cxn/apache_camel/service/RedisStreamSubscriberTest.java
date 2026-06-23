@@ -10,6 +10,7 @@ import org.springframework.data.redis.connection.stream.MapRecord;
 import org.springframework.data.redis.connection.stream.RecordId;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
+import vn.cxn.apache_camel.config.RedisClusterProperties;
 import vn.cxn.apache_camel.service.route_command.ClusterRouteCommand;
 
 class RedisStreamSubscriberTest {
@@ -19,6 +20,7 @@ class RedisStreamSubscriberTest {
     private RedisTemplate<String, Object> redisTemplate;
     private RedisMessageListenerContainer redisMessageListenerContainer;
     private List<ClusterRouteCommand> routeCommands;
+    private RedisClusterProperties properties;
 
     @SuppressWarnings("unchecked")
     @BeforeEach
@@ -27,13 +29,15 @@ class RedisStreamSubscriberTest {
         redisTemplate = mock(RedisTemplate.class);
         redisMessageListenerContainer = mock(RedisMessageListenerContainer.class);
         routeCommands = new ArrayList<>();
+        properties = new RedisClusterProperties();
 
         subscriber =
                 new RedisStreamSubscriber(
                         clusterNodeService,
                         redisTemplate,
                         redisMessageListenerContainer,
-                        routeCommands);
+                        routeCommands,
+                        properties);
     }
 
     @Test

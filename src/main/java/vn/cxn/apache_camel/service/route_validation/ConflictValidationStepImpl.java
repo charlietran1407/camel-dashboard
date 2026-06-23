@@ -84,7 +84,7 @@ public class ConflictValidationStepImpl implements RouteValidationStep {
             RouteVersion activeVersion,
             String targetApiContextPathSignature) {
         try {
-            String activeContent = routeVersionService.getContentFromDisk(activeVersion.getId());
+            String activeContent = routeVersionService.getContentDb(activeVersion.getId());
             String activeApiContextPathSignature =
                     routeVersionService.getApiContextPathSignature(
                             activeVersion.getFileName(), activeContent);

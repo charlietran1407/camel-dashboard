@@ -18,10 +18,10 @@ import org.springframework.transaction.annotation.Transactional;
 import vn.cxn.apache_camel.model.dto.RestParamInfo;
 import vn.cxn.apache_camel.model.dto.RouteInfo;
 import vn.cxn.apache_camel.model.dto.RouteMetadata;
+import vn.cxn.apache_camel.model.dto.RouteRuntimeState;
 import vn.cxn.apache_camel.model.dto.RouteVersion;
 import vn.cxn.apache_camel.model.dto.ServiceDTO;
 import vn.cxn.apache_camel.model.entity.ClusterNodeEntity;
-import vn.cxn.apache_camel.model.entity.RouteRuntimeStateEntity;
 import vn.cxn.apache_camel.model.entity.RouteVersionEntity;
 import vn.cxn.apache_camel.model.enums.NodeState;
 import vn.cxn.apache_camel.model.enums.RouteState;
@@ -115,7 +115,7 @@ public class CamelRouteService implements RouteLifecycleService, RouteQueryServi
     /** List all running routes with their status and version info. */
     public List<RouteInfo> listRoutes() {
         List<ClusterNodeEntity> onlineNodes = getOnlineNodes();
-        Map<String, Map<String, RouteRuntimeStateEntity>> statesByRouteAndNode =
+        Map<String, Map<String, RouteRuntimeState>> statesByRouteAndNode =
                 groupStatesByRouteAndNode(clusterNodeService.getAllRouteStates());
         return listRoutes(onlineNodes, statesByRouteAndNode);
     }
@@ -126,7 +126,7 @@ public class CamelRouteService implements RouteLifecycleService, RouteQueryServi
      */
     private List<RouteInfo> listRoutes(
             List<ClusterNodeEntity> onlineNodes,
-            Map<String, Map<String, RouteRuntimeStateEntity>> statesByRouteAndNode) {
+            Map<String, Map<String, RouteRuntimeState>> statesByRouteAndNode) {
 
         // Pre-fetch all RouteEntity records
         Map<String, vn.cxn.apache_camel.model.entity.RouteEntity> routesMap =
@@ -179,7 +179,7 @@ public class CamelRouteService implements RouteLifecycleService, RouteQueryServi
     private RouteInfo buildRouteInfo(
             Route route,
             List<ClusterNodeEntity> onlineNodes,
-            Map<String, Map<String, RouteRuntimeStateEntity>> statesByRouteAndNode,
+            Map<String, Map<String, RouteRuntimeState>> statesByRouteAndNode,
             Map<String, vn.cxn.apache_camel.model.entity.RouteEntity> routesMap,
             Map<String, RouteVersion> activeVersionsByServiceId,
             Map<String, Integer> totalVersionsByServiceId,
@@ -427,14 +427,14 @@ public class CamelRouteService implements RouteLifecycleService, RouteQueryServi
     /**
      * Groups a pre-fetched list of route states into a two-level map: routeId → instanceId → state.
      */
-    private static Map<String, Map<String, RouteRuntimeStateEntity>> groupStatesByRouteAndNode(
-            List<RouteRuntimeStateEntity> allRouteStates) {
+    private static Map<String, Map<String, RouteRuntimeState>> groupStatesByRouteAndNode(
+            List<RouteRuntimeState> allRouteStates) {
         return allRouteStates.stream()
                 .collect(
                         Collectors.groupingBy(
-                                RouteRuntimeStateEntity::getRouteId,
+                                RouteRuntimeState::routeId,
                                 Collectors.toMap(
-                                        RouteRuntimeStateEntity::getInstanceId,
+                                        RouteRuntimeState::instanceId,
                                         state -> state,
                                         (s1, s2) -> s1)));
     }
@@ -464,7 +464,7 @@ public class CamelRouteService implements RouteLifecycleService, RouteQueryServi
             List<RouteInfo> serviceRoutes,
             Set<String> matchedRestRouteIds,
             List<ClusterNodeEntity> onlineNodes,
-            Map<String, Map<String, RouteRuntimeStateEntity>> statesByRouteAndNode,
+            Map<String, Map<String, RouteRuntimeState>> statesByRouteAndNode,
             Map<String, String> routeStatusCache) {
 
         List<Map<String, Object>> serviceRests = new ArrayList<>();
@@ -493,7 +493,7 @@ public class CamelRouteService implements RouteLifecycleService, RouteQueryServi
             List<RouteInfo> serviceRoutes,
             Set<String> matchedRestRouteIds,
             List<ClusterNodeEntity> onlineNodes,
-            Map<String, Map<String, RouteRuntimeStateEntity>> statesByRouteAndNode,
+            Map<String, Map<String, RouteRuntimeState>> statesByRouteAndNode,
             Map<String, String> routeStatusCache) {
 
         List<Map<String, Object>> dslRests = new ArrayList<>();
@@ -545,7 +545,7 @@ public class CamelRouteService implements RouteLifecycleService, RouteQueryServi
             List<RouteInfo> serviceRoutes,
             Set<String> matchedRestRouteIds,
             List<ClusterNodeEntity> onlineNodes,
-            Map<String, Map<String, RouteRuntimeStateEntity>> statesByRouteAndNode,
+            Map<String, Map<String, RouteRuntimeState>> statesByRouteAndNode,
             Map<String, String> routeStatusCache) {
 
         List<Map<String, Object>> standaloneRests = new ArrayList<>();
@@ -757,7 +757,7 @@ public class CamelRouteService implements RouteLifecycleService, RouteQueryServi
             VerbDefinition verb,
             String actualRouteId,
             List<ClusterNodeEntity> onlineNodes,
-            Map<String, Map<String, RouteRuntimeStateEntity>> statesByRouteAndNode,
+            Map<String, Map<String, RouteRuntimeState>> statesByRouteAndNode,
             Map<String, String> routeStatusCache) {
 
         String method = verb.getClass().getSimpleName().replace("Definition", "").toUpperCase();
@@ -812,7 +812,7 @@ public class CamelRouteService implements RouteLifecycleService, RouteQueryServi
             RestDefinition rest,
             List<Map<String, Object>> verbList,
             List<ClusterNodeEntity> onlineNodes,
-            Map<String, Map<String, RouteRuntimeStateEntity>> statesByRouteAndNode,
+            Map<String, Map<String, RouteRuntimeState>> statesByRouteAndNode,
             Map<String, String> routeStatusCache) {
 
         String basePath = rest.getPath() != null ? rest.getPath() : "";

@@ -68,7 +68,7 @@ public class RouteRestCleanupServiceImpl implements RouteRestCleanupService {
 
             for (var rv : versionsToParse) {
                 try {
-                    var yamlContent = versionService.getContentFromDisk(rv.getId());
+                    var yamlContent = versionService.getContentDb(rv.getId());
                     if (yamlContent != null && !yamlContent.isBlank()) {
                         serviceRestPaths.addAll(
                                 CamelYamlParser.extractRestPathsFromYaml(yamlContent));

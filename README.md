@@ -40,6 +40,15 @@ Camel Dashboard is a platform for managing Apache Camel routes. Instead of writi
 
 ---
 
+## 📖 Examples
+
+Looking for ready-to-use Apache Camel route examples (AI workflows, REST APIs, File watch, gateway)? 
+All sample routes have been moved to a dedicated repository:
+
+👉 **[camel-dashboard-examples](https://github.com/charlietran1407/camel-dashboard-examples)**
+
+---
+
 ## 📸 Screenshots & Demo
 
 ### Demo

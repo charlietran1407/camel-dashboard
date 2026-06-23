@@ -3,6 +3,7 @@ package vn.cxn.apache_camel.service;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
+import vn.cxn.apache_camel.config.RedisClusterProperties;
 import vn.cxn.apache_camel.model.dto.RouteVersion;
 import vn.cxn.apache_camel.service.mapper.RouteVersionMapperImpl;
 import vn.cxn.apache_camel.service.route_document.YamlRouteDocumentStrategyImpl;
@@ -434,7 +435,8 @@ class RouteVersionServiceTest {
                         new RouteVersionMapperImpl(
                                 new com.fasterxml.jackson.databind.ObjectMapper(),
                                 camelContext,
-                                routeRepo));
+                                routeRepo),
+                        new RedisClusterProperties());
         service.init();
 
         String routeId = "test-route";
@@ -499,7 +501,8 @@ class RouteVersionServiceTest {
                         new RouteVersionMapperImpl(
                                 new com.fasterxml.jackson.databind.ObjectMapper(),
                                 camelContext,
-                                routeRepo));
+                                routeRepo),
+                        new RedisClusterProperties());
         service.init();
 
         String routeId = "test-route";
@@ -613,7 +616,8 @@ class RouteVersionServiceTest {
                         new RouteVersionMapperImpl(
                                 new com.fasterxml.jackson.databind.ObjectMapper(),
                                 camelContext,
-                                routeRepo));
+                                routeRepo),
+                        new RedisClusterProperties());
         service.init();
         return service;
     }
@@ -652,8 +656,12 @@ class RouteVersionServiceTest {
         assertThat(service.getActiveOrSpecifiedVersion("empty-service", null)).isEmpty();
 
         // 2. upload multiple versions
+        RouteVersion v1 =
+                service.uploadRoute("test-service", "route1.yaml", "- from: timer:tick1", "v1");
         RouteVersion v2 =
                 service.uploadRoute("test-service", "route2.yaml", "- from: timer:tick2", "v2");
+        RouteVersion v3 =
+                service.uploadRoute("test-service", "route3.yaml", "- from: timer:tick3", "v3");
 
         // 3. fetch specified version
         java.util.Optional<RouteVersion> found =

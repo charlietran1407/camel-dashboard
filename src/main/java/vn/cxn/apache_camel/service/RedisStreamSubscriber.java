@@ -22,6 +22,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.listener.PatternTopic;
 import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.stereotype.Service;
+import vn.cxn.apache_camel.config.RedisClusterProperties;
 import vn.cxn.apache_camel.model.enums.ClusterEventType;
 import vn.cxn.apache_camel.service.route_command.ClusterRouteCommand;
 import vn.cxn.apache_camel.service.route_command.RouteCommandContext;
@@ -36,6 +37,7 @@ public class RedisStreamSubscriber {
     private final RedisTemplate<String, Object> redisTemplate;
     private final RedisMessageListenerContainer redisMessageListenerContainer;
     private final Map<ClusterEventType, ClusterRouteCommand> routeCommands;
+    private final RedisClusterProperties properties;
 
     @Value("${camel.dashboard.cluster.stream-key:cluster:event:stream}")
     private String streamKey;
@@ -47,7 +49,8 @@ public class RedisStreamSubscriber {
             ClusterNodeService clusterNodeService,
             @Qualifier("clusterRedisTemplate") RedisTemplate<String, Object> redisTemplate,
             RedisMessageListenerContainer redisMessageListenerContainer,
-            List<ClusterRouteCommand> routeCommands) {
+            List<ClusterRouteCommand> routeCommands,
+            RedisClusterProperties properties) {
         this.clusterNodeService = clusterNodeService;
         this.redisTemplate = redisTemplate;
         this.redisMessageListenerContainer = redisMessageListenerContainer;
@@ -59,6 +62,7 @@ public class RedisStreamSubscriber {
                                         Function.identity(),
                                         (first, second) -> first,
                                         () -> new EnumMap<>(ClusterEventType.class)));
+        this.properties = properties;
     }
 
     @PostConstruct
@@ -84,13 +88,13 @@ public class RedisStreamSubscriber {
                 },
                 new PatternTopic(channel));
 
-        // 2. Execute the recovery/catch-up flow in a background thread to prevent
+        // 2. Initialize the cluster subscriber checkpoint in a background thread to prevent
         // blocking Spring startup
-        new Thread(this::recoverAndCatchUp, "redis-cluster-recovery-thread").start();
+        new Thread(this::initializeCheckpoint, "redis-checkpoint-initializer").start();
     }
 
-    private void recoverAndCatchUp() {
-        log.info("RedisStreamSubscriber: Starting recovery thread...");
+    private void initializeCheckpoint() {
+        log.info("RedisStreamSubscriber: Starting checkpoint initializer thread...");
         while (!Thread.currentThread().isInterrupted()) {
             try {
                 String instanceId = clusterNodeService.getInstanceId();
@@ -116,14 +120,14 @@ public class RedisStreamSubscriber {
                 }
 
                 if (latestId != null && !latestId.isBlank()) {
-                    redisTemplate.opsForValue().set("cluster:checkpoint:" + instanceId, latestId);
+                    redisTemplate.opsForValue().set(properties.checkpointKey(instanceId), latestId);
                     log.info(
                             "RedisStreamSubscriber: Initialized checkpoint for node '{}' to latest"
                                     + " event ID '{}'",
                             instanceId,
                             latestId);
                 } else {
-                    redisTemplate.opsForValue().set("cluster:checkpoint:" + instanceId, "0-0");
+                    redisTemplate.opsForValue().set(properties.checkpointKey(instanceId), "0-0");
                     log.info(
                             "RedisStreamSubscriber: Stream '{}' is empty. Initialized checkpoint"
                                     + " for node '{}' to '0-0'",
@@ -153,7 +157,7 @@ public class RedisStreamSubscriber {
         try {
             String instanceId = clusterNodeService.getInstanceId();
             String checkpoint =
-                    (String) redisTemplate.opsForValue().get("cluster:checkpoint:" + instanceId);
+                    (String) redisTemplate.opsForValue().get(properties.checkpointKey(instanceId));
 
             // Ignore real-time alerts if they have already been processed (i.e. older or
             // equal to checkpoint)
@@ -190,7 +194,7 @@ public class RedisStreamSubscriber {
             for (MapRecord<String, Object, Object> record : consolidated) {
                 String recId = record.getId().getValue();
                 Map<Object, Object> eventMap = record.getValue();
-                processRecord(recId, eventMap, false);
+                processRecord(recId, eventMap);
             }
 
         } catch (Exception e) {
@@ -234,34 +238,32 @@ public class RedisStreamSubscriber {
         return consolidated;
     }
 
-    private void processRecord(String eventId, Map<Object, Object> eventMap, boolean isRecovery) {
+    private void processRecord(String eventId, Map<Object, Object> eventMap) {
         String eventTypeStr = (String) eventMap.get("eventType");
         ClusterEventType eventType = ClusterEventType.fromValue(eventTypeStr);
         String targetId = (String) eventMap.get("targetId");
         String initiatorId = (String) eventMap.get("initiatorId");
         String instanceId = clusterNodeService.getInstanceId();
 
-        // 1. Double-check if the current node was the initiator of this event (in
-        // non-recovery mode)
-        if (!isRecovery && instanceId.equals(initiatorId)) {
+        // 1. Double-check if the current node was the initiator of this event
+        if (instanceId.equals(initiatorId)) {
             log.info(
                     "RedisStreamSubscriber: Skipping execution of '{}' for '{}' since this node was"
                             + " the initiator.",
                     eventType,
                     targetId);
             // Just update local checkpoint
-            redisTemplate.opsForValue().set("cluster:checkpoint:" + instanceId, eventId);
+            redisTemplate.opsForValue().set(properties.checkpointKey(instanceId), eventId);
             return;
         }
 
         log.info(
                 "RedisStreamSubscriber: Processing event '{}' (ID: {}) for target '{}' initiated by"
-                        + " '{}'{}",
+                        + " '{}'",
                 eventType,
                 eventId,
                 targetId,
-                initiatorId,
-                isRecovery ? " [REPLAY]" : "");
+                initiatorId);
 
         try {
             ClusterRouteCommand command = routeCommands.get(eventType);
@@ -272,7 +274,7 @@ public class RedisStreamSubscriber {
             }
 
             // 2. Successful execution - update the checkpoint in Redis
-            redisTemplate.opsForValue().set("cluster:checkpoint:" + instanceId, eventId);
+            redisTemplate.opsForValue().set(properties.checkpointKey(instanceId), eventId);
             log.info(
                     "RedisStreamSubscriber: Successfully processed event '{}' (ID: {}). Checkpoint"
                             + " updated.",
