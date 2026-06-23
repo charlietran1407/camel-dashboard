@@ -40,6 +40,15 @@ Camel Dashboard là một nền tảng để quản lý các route Apache Camel.
 
 ---
 
+## 📖 Ví dụ mẫu (Examples)
+
+Bạn muốn tham khảo các mẫu route Apache Camel (quy trình AI, REST API, theo dõi file, gateway)?
+Tất cả các route ví dụ mẫu đã được chuyển sang một kho lưu trữ riêng biệt tại:
+
+👉 **[camel-dashboard-examples](https://github.com/charlietran1407/camel-dashboard-examples)**
+
+---
+
 ## 📸 Demo & Ảnh chụp màn hình
 
 ### Demo
