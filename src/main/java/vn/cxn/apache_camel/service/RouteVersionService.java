@@ -496,10 +496,6 @@ public class RouteVersionService {
         }
     }
 
-    public String getContentFromDisk(String versionId) throws IOException {
-        return getContentDb(versionId);
-    }
-
     public String getContentDb(String versionId) throws IOException {
         try {
             Optional<RouteVersionEntity> opt = versionRepository.findById(parseUuid(versionId));
@@ -527,7 +523,7 @@ public class RouteVersionService {
         }
 
         normalizeRouteMetadata(version);
-        String content = getContentFromDisk(version.getId());
+        String content = getContentDb(version.getId());
         String serviceId = version.getServiceId();
         String prefix =
                 (serviceId != null && !serviceId.isBlank())
@@ -562,8 +558,7 @@ public class RouteVersionService {
                     .forEach(signatures::add);
         }
         signatures.addAll(
-                extractEndpointSignatures(
-                        version.getFileName(), getContentFromDisk(version.getId())));
+                extractEndpointSignatures(version.getFileName(), getContentDb(version.getId())));
         return signatures;
     }
 
@@ -742,7 +737,7 @@ public class RouteVersionService {
                 .map(
                         v -> {
                             try {
-                                String content = getContentFromDisk(v.getId());
+                                String content = getContentDb(v.getId());
                                 v.setContent(content);
                             } catch (IOException e) {
                                 log.warn(

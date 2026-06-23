@@ -35,17 +35,26 @@ class LoaderPathDependencyServiceTest {
     void testModelineCommentParsing() {
         String yamlContent =
                 """
-                # camel-dashboard: dependency=dev.langchain4j:langchain4j-google-ai-gemini:0.31.0, org.apache.camel:camel-langchain4j-embeddings:4.20.0
+                 # camel-dashboard : dependency = dev.langchain4j:langchain4j-google-ai-gemini:0.31.0,org.apache.camel:camel-langchain4j-embeddings:4.20.0
+                 # camel-dashboard:       dependency   =  dev.langchain4j:langchain4j -google-ai-gemini: 1.31.0 , org.apache.camel : camel-langchain4j-embeddings:5.20.0
+                 # camel-dashboard :dependency=dev.langchain4j:langchain4j-google-ai-gemini:2.31.0,org.apache.camel:camel-langchain4j-embeddings:6.20.0
                 - from:
                     uri: direct:start
                     steps:
                       - log: "Hello World"
+                 # camel-dashboard : dependency = dev.langchain4j:langchain4j-google-ai-gemini:3.31.0,org.apache.camel:camel-langchain4j-embeddings:7.20.0
                 """;
         ScanResult scanResult = scanner.scan(yamlContent);
         assertThat(scanResult.explicitDependencies())
                 .containsExactlyInAnyOrder(
                         "dev.langchain4j:langchain4j-google-ai-gemini:0.31.0",
-                        "org.apache.camel:camel-langchain4j-embeddings:4.20.0");
+                        "org.apache.camel:camel-langchain4j-embeddings:4.20.0",
+                        "dev.langchain4j:langchain4j-google-ai-gemini:1.31.0",
+                        "org.apache.camel:camel-langchain4j-embeddings:5.20.0",
+                        "dev.langchain4j:langchain4j-google-ai-gemini:2.31.0",
+                        "org.apache.camel:camel-langchain4j-embeddings:6.20.0",
+                        "dev.langchain4j:langchain4j-google-ai-gemini:3.31.0",
+                        "org.apache.camel:camel-langchain4j-embeddings:7.20.0");
     }
 
     @Test
@@ -293,7 +302,8 @@ class LoaderPathDependencyServiceTest {
         List<String> missingCoords = mapper.resolveMissingCoordinates(scanResult);
         System.out.println("BARCODE MISSING COORDS: " + missingCoords);
 
-        // Since camel-barcode is NOT on the classpath, it must be in the missing coordinates.
+        // Since camel-barcode is NOT on the classpath, it must be in the missing
+        // coordinates.
         assertThat(missingCoords).anyMatch(coord -> coord.contains("camel-barcode"));
     }
 }

@@ -20,9 +20,7 @@ public final class CamelYamlParser {
         // Prevent instantiation
     }
 
-    /**
-     * Strips metadata block and HikariDataSource beans from YAML route definitions.
-     */
+    /** Strips metadata block and HikariDataSource beans from YAML route definitions. */
     @SuppressWarnings("unchecked")
     public static String stripMetadata(String content) {
         if (content == null || content.isBlank()) {
@@ -236,10 +234,7 @@ public final class CamelYamlParser {
         return content;
     }
 
-    /**
-     * Extracts REST paths from a YAML/XML definition using a lightweight
-     * CamelContext.
-     */
+    /** Extracts REST paths from a YAML/XML definition using a lightweight CamelContext. */
     public static Set<String> extractRestPathsFromYaml(String content) {
         Set<String> paths = new HashSet<>();
         if (content == null || content.isBlank()) {
@@ -274,10 +269,7 @@ public final class CamelYamlParser {
         return paths;
     }
 
-    /**
-     * Extracts REST definitions from the YAML/XML content using a lightweight
-     * CamelContext.
-     */
+    /** Extracts REST definitions from the YAML/XML content using a lightweight CamelContext. */
     public static List<RestDefinition> parseRestDefinitions(String content) {
         if (content == null || content.isBlank()) {
             return new ArrayList<>();
@@ -302,8 +294,7 @@ public final class CamelYamlParser {
     }
 
     /**
-     * Extracts REST parameters matching a specific route from a pre-parsed list of
-     * REST
+     * Extracts REST parameters matching a specific route from a pre-parsed list of REST
      * definitions.
      */
     public static List<RestParamInfo> extractParamsFromDefinitions(
@@ -319,38 +310,44 @@ public final class CamelYamlParser {
                     String verbRouteId = verb.getRouteId();
 
                     // 1. Route ID match strategies
-                    boolean matches = (originalId != null && originalId.equals(verbRouteId))
-                            || (verbRouteId != null
-                                    && originalId != null
-                                    && originalId.endsWith("__" + verbRouteId));
+                    boolean matches =
+                            (originalId != null && originalId.equals(verbRouteId))
+                                    || (verbRouteId != null
+                                            && originalId != null
+                                            && originalId.endsWith("__" + verbRouteId));
 
                     // 2. HTTP method + path match against sourceUri strategy
                     if (!matches
                             && sourceUri != null
                             && sourceUri.trim().toLowerCase().startsWith("rest:")) {
-                        String verbMethod = verb.getClass()
-                                .getSimpleName()
-                                .replace("Definition", "")
-                                .toLowerCase();
+                        String verbMethod =
+                                verb.getClass()
+                                        .getSimpleName()
+                                        .replace("Definition", "")
+                                        .toLowerCase();
                         String restBasePath = rest.getPath() != null ? rest.getPath() : "";
                         String verbSubPath = verb.getPath() != null ? verb.getPath() : "";
-                        String combinedPath = ("/" + restBasePath + "/" + verbSubPath)
-                                .replace('\\', '/')
-                                .replaceAll("/+", "/")
-                                .replaceAll("/+$", "");
+                        String combinedPath =
+                                ("/" + restBasePath + "/" + verbSubPath)
+                                        .replace('\\', '/')
+                                        .replaceAll("/+", "/")
+                                        .replaceAll("/+$", "");
                         if (combinedPath.isEmpty()) {
                             combinedPath = "/";
                         }
-                        String cleanSource = sourceUri
-                                .replaceAll("\\?.*$", "")
-                                .replaceAll("/+$", "")
-                                .toLowerCase();
-                        String expected1 = "rest://" + verbMethod + ":" + combinedPath.toLowerCase();
+                        String cleanSource =
+                                sourceUri
+                                        .replaceAll("\\?.*$", "")
+                                        .replaceAll("/+$", "")
+                                        .toLowerCase();
+                        String expected1 =
+                                "rest://" + verbMethod + ":" + combinedPath.toLowerCase();
                         String expected2 = "rest:" + verbMethod + ":" + combinedPath.toLowerCase();
-                        matches = cleanSource.equals(expected1)
-                                || cleanSource.equals(expected2)
-                                || cleanSource.startsWith(expected1 + "/")
-                                || cleanSource.startsWith(expected2 + "/");
+                        matches =
+                                cleanSource.equals(expected1)
+                                        || cleanSource.equals(expected2)
+                                        || cleanSource.startsWith(expected1 + "/")
+                                        || cleanSource.startsWith(expected2 + "/");
                     }
 
                     if (matches && verb.getParams() != null) {
@@ -377,8 +374,7 @@ public final class CamelYamlParser {
     }
 
     /**
-     * Parse and extract rest parameters for a specific route from fallback YAML/XML
-     * using a
+     * Parse and extract rest parameters for a specific route from fallback YAML/XML using a
      * lightweight CamelContext.
      */
     public static List<RestParamInfo> parseRestParams(

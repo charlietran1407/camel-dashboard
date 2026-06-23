@@ -20,6 +20,10 @@ public class CamelYamlComponentScanner {
 
     private static final Logger log = LoggerFactory.getLogger(CamelYamlComponentScanner.class);
 
+    private static final java.util.regex.Pattern MODELINE_PATTERN =
+            java.util.regex.Pattern.compile(
+                    "^#\\s*camel-dashboard\\s*:\\s*dependency\\s*=\\s*(.+)");
+
     /** Scan {@code yamlContent} and return a {@link ScanResult} with all detected identifiers. */
     public ScanResult scan(String yamlContent) {
         Set<String> schemes = new LinkedHashSet<>();
@@ -263,10 +267,9 @@ public class CamelYamlComponentScanner {
         String[] lines = yamlContent.split("\\r?\\n");
         for (String line : lines) {
             String trimmed = line.trim();
-            if (trimmed.startsWith("#") && trimmed.contains("camel-dashboard: dependency=")) {
-                int index = trimmed.indexOf("camel-dashboard: dependency=");
-                String depsPart =
-                        trimmed.substring(index + "camel-dashboard: dependency=".length()).trim();
+            java.util.regex.Matcher matcher = MODELINE_PATTERN.matcher(trimmed);
+            if (matcher.matches()) {
+                String depsPart = matcher.group(1).replaceAll("\\s+", "");
                 if (!depsPart.isEmpty()) {
                     String[] deps = depsPart.split(",");
                     for (String dep : deps) {

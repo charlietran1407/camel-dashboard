@@ -91,7 +91,7 @@ public class RestParamExtractorImpl implements RestParamExtractor {
 
         if (activeVersionId != null) {
             try {
-                String yamlContent = versionService.getContentFromDisk(activeVersionId);
+                String yamlContent = versionService.getContentDb(activeVersionId);
                 if (yamlContent != null && !yamlContent.isBlank()) {
                     return CamelYamlParser.parseRestParams(yamlContent, originalId, sourceUri);
                 }

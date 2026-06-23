@@ -32,10 +32,13 @@ class RouteIdManager {
                 return content;
             }
             Yaml yaml = new Yaml();
+            String dumped;
             if (docs.size() == 1) {
-                return yaml.dump(docs.get(0));
+                dumped = yaml.dump(docs.get(0));
+            } else {
+                dumped = yaml.dumpAll(docs.iterator());
             }
-            return yaml.dumpAll(docs.iterator());
+            return extractHeaderComments(content) + dumped;
         } catch (Exception e) {
             log.warn("Failed to auto-generate and insert route IDs: {}", e.getMessage());
             return content;
@@ -226,10 +229,13 @@ class RouteIdManager {
         }
         docs.forEach(doc -> rewriteYamlNode(doc, routeIdMapping, internalEndpointPrefix));
         Yaml yaml = new Yaml();
+        String dumped;
         if (docs.size() == 1) {
-            return yaml.dump(docs.get(0));
+            dumped = yaml.dump(docs.get(0));
+        } else {
+            dumped = yaml.dumpAll(docs.iterator());
         }
-        return yaml.dumpAll(docs.iterator());
+        return extractHeaderComments(content) + dumped;
     }
 
     @SuppressWarnings("unchecked")
@@ -289,5 +295,25 @@ class RouteIdManager {
         if (val != null && mapping.containsKey(val.toString())) {
             map.put(key, mapping.get(val.toString()));
         }
+    }
+
+    private String extractHeaderComments(String content) {
+        if (content == null) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        String lineSeparator = content.contains("\r\n") ? "\r\n" : "\n";
+        String[] lines = content.split("\\r?\\n");
+        for (String line : lines) {
+            String trimmed = line.trim();
+            if (trimmed.isEmpty()) {
+                sb.append(line).append(lineSeparator);
+            } else if (trimmed.startsWith("#")) {
+                sb.append(line).append(lineSeparator);
+            } else {
+                break;
+            }
+        }
+        return sb.toString();
     }
 }
