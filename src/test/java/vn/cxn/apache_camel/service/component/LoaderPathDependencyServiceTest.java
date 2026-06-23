@@ -3,8 +3,6 @@ package vn.cxn.apache_camel.service.component;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -71,8 +69,28 @@ class LoaderPathDependencyServiceTest {
 
     @Test
     void testServiceEnsureComponentsAvailable_OpenApiUser() throws IOException {
-        Path yamlPath = Path.of("examples/openapi/user.camel.yaml");
-        String yamlContent = Files.readString(yamlPath);
+        String yamlContent =
+                """
+                - rest:
+                    path: "/users"
+                    post:
+                      - to: "direct:post-user"
+                - route:
+                    from:
+                      uri: "direct:post-user"
+                      steps:
+                        - setBody:
+                            expression:
+                              groovy: "request.body"
+                        - setHeader:
+                            name: "userId"
+                            expression:
+                              simple: "${body.id}"
+                        - marshal:
+                            json:
+                              library: Jackson
+                        - to: "bean:userService?method=save"
+                """;
 
         // Configure dynamic loader path in target directory to avoid polluting root
         org.springframework.test.util.ReflectionTestUtils.setField(
@@ -124,9 +142,28 @@ class LoaderPathDependencyServiceTest {
 
     @Test
     void testEnsureComponentsAvailable_OpenApiUser() throws IOException {
-        // Read the content of user.camel.yaml
-        Path yamlPath = Path.of("examples/openapi/user.camel.yaml");
-        String yamlContent = Files.readString(yamlPath);
+        String yamlContent =
+                """
+                - rest:
+                    path: "/users"
+                    post:
+                      - to: "direct:post-user"
+                - route:
+                    from:
+                      uri: "direct:post-user"
+                      steps:
+                        - setBody:
+                            expression:
+                              groovy: "request.body"
+                        - setHeader:
+                            name: "userId"
+                            expression:
+                              simple: "${body.id}"
+                        - marshal:
+                            json:
+                              library: Jackson
+                        - to: "bean:userService?method=save"
+                """;
 
         // Scan the content using our in-memory mock CamelContext parser
         ScanResult scanResult = scanner.scan(yamlContent);
@@ -165,9 +202,18 @@ class LoaderPathDependencyServiceTest {
 
     @Test
     void testEnsureComponentsAvailable_CircuitBreaker() throws IOException {
-        // Read the content of mycb.camel.yaml
-        Path yamlPath = Path.of("examples/circuitBreaker/mycb.camel.yaml");
-        String yamlContent = Files.readString(yamlPath);
+        String yamlContent =
+                """
+                - route:
+                    from:
+                      uri: timer:tick
+                      steps:
+                        - circuitBreaker:
+                            resilience4jConfiguration:
+                              failureRateThreshold: 50
+                            steps:
+                              - to: log:info
+                """;
 
         // Scan the content
         ScanResult scanResult = scanner.scan(yamlContent);
@@ -231,9 +277,14 @@ class LoaderPathDependencyServiceTest {
 
     @Test
     void testEnsureComponentsAvailable_Caffeine() throws IOException {
-        // Read the content of camel-caffeine.camel.yaml
-        Path yamlPath = Path.of("examples/camel-caffeine/camel-caffeine.camel.yaml");
-        String yamlContent = Files.readString(yamlPath);
+        String yamlContent =
+                """
+                - route:
+                    from:
+                      uri: timer:tick
+                      steps:
+                        - to: caffeine-cache:myCache?action=PUT
+                """;
 
         // Scan the content to find components
         ScanResult scanResult = scanner.scan(yamlContent);
@@ -289,9 +340,14 @@ class LoaderPathDependencyServiceTest {
     @Test
     void testEnsureComponentsAvailable_Barcode() throws IOException {
         String yamlContent =
-                Files.readString(
-                        Path.of(
-                                "d:/Projects/apache-camel/GitHub/camel-dashboard-examples/Beginner/Barcode/barcode.camel.yaml"));
+                """
+                - route:
+                    from:
+                      uri: timer:tick
+                      steps:
+                        - marshal:
+                            barcode: {}
+                """;
         ScanResult scanResult = scanner.scan(yamlContent);
         System.out.println("BARCODE SCAN SCHEMES: " + scanResult.schemes());
         System.out.println("BARCODE SCAN DATAFORMATS: " + scanResult.dataFormats());
