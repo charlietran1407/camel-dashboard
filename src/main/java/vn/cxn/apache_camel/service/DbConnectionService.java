@@ -38,6 +38,9 @@ public class DbConnectionService {
     private final JdbcUrlBuilder jdbcUrlBuilder;
     private final DbConnectionMapper mapper;
 
+    @Value("${app.initial-mode:false}")
+    private boolean initialMode;
+
     private javax.crypto.SecretKey secretKeySpec;
 
     public DbConnectionService(
@@ -69,6 +72,12 @@ public class DbConnectionService {
     @EventListener(ApplicationReadyEvent.class)
     @Transactional(readOnly = true)
     public void initGlobalConnections() {
+        if (initialMode) {
+            log.info(
+                    "Running in initial mode. Skipping global database connection pools"
+                            + " initialization.");
+            return;
+        }
         log.info("Starting global database connection pools initialization...");
         repository
                 .findAll()

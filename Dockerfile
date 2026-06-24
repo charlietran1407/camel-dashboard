@@ -52,11 +52,10 @@ WORKDIR /app
 COPY --from=backend-builder /app/libs /app/libs
 COPY --from=backend-builder /app/logs /app/logs
 COPY --from=backend-builder /app/target/*.jar app.jar
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+
+RUN chmod +x /app/docker-entrypoint.sh
 
 EXPOSE 8080
 
-ENTRYPOINT ["java", \
-    "-Dspring.profiles.active=prod", \
-    "-Dloader.path=/app/libs", \
-    "-jar", \
-    "app.jar"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]

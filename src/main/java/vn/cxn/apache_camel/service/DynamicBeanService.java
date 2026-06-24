@@ -14,6 +14,7 @@ import java.util.stream.Collectors;
 import org.apache.camel.CamelContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.cxn.apache_camel.model.dto.BeanInfo;
@@ -29,6 +30,9 @@ public class DynamicBeanService {
     private final CamelContext camelContext;
     private final BeanRepository beanRepository;
 
+    @Value("${app.initial-mode:false}")
+    private boolean initialMode;
+
     public DynamicBeanService(CamelContext camelContext, BeanRepository beanRepository) {
         this.camelContext = camelContext;
         this.beanRepository = beanRepository;
@@ -43,6 +47,10 @@ public class DynamicBeanService {
 
     @PostConstruct
     public void init() {
+        if (initialMode) {
+            log.info("Running in initial mode. Skipping dynamic beans registration.");
+            return;
+        }
         try {
             // Re-register all previously registered beans on startup
             beanRepository.findAll().stream()
